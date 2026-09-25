@@ -1,19 +1,129 @@
-import { jest } from '@jest/globals'
-import { Coffee } from '../../domain/entities/coffee.entity'
-import { CoffeeRepositoryPort } from '../../domain/ports/coffee.repository'
+import { CoffeeProcess } from '../../domain/enums/coffee-process.enum'
+import { CoffeeRegion } from '../../domain/enums/coffee-region.enum'
+import { RoastLevel } from '../../domain/enums/roast-level.enum'
+import { buildCoffee, buildPage, FakeCoffeeRepository } from '../../testing/coffee.fixtures'
 import { GetCoffeesUseCase } from './get-coffees.use-case'
 
 describe('GetCoffeesUseCase', () => {
-  it('devuelve los cafés del repositorio', async () => {
-    const expected = new Coffee(1, 'Geisha Huila', 'Huila, Colombia', 28.5, new Date())
-    const repository: Pick<CoffeeRepositoryPort, 'create' | 'findAll'> = {
-      create: jest.fn<(coffee: Coffee) => Promise<Coffee>>(),
-      findAll: jest.fn<() => Promise<Coffee[]>>().mockResolvedValue([expected]),
-    }
+  it('devuelve la página que trae el repositorio', async () => {
+    const coffee = buildCoffee('1')
+    const repository = new FakeCoffeeRepository(buildPage([coffee], 1))
 
-    const useCase = new GetCoffeesUseCase(repository as CoffeeRepositoryPort)
+    const result = await new GetCoffeesUseCase(repository).execute({
+      page: 1,
+      limit: 12,
+    })
 
-    await expect(useCase.execute()).resolves.toEqual([expected])
-    expect(repository.findAll).toHaveBeenCalledTimes(1)
+    expect(result.items).toEqual([coffee])
+    expect(result.total).toBe(1)
+  })
+
+  it('reenvía los filtros al repositorio sin alterarlos', async () => {
+    const repository = new FakeCoffeeRepository()
+
+    await new GetCoffeesUseCase(repository).execute({
+      region: CoffeeRegion.NARIÑO,
+      process: CoffeeProcess.NATURAL,
+      roastLevel: RoastLevel.LIGHT,
+      search: 'geisha',
+      page: 2,
+      limit: 6,
+    })
+
+    expect(repository.lastFilters).toEqual({
+      region: CoffeeRegion.NARIÑO,
+      process: CoffeeProcess.NATURAL,
+      roastLevel: RoastLevel.LIGHT,
+      search: 'geisha',
+      page: 2,
+      limit: 6,
+    })
+  })
+
+  it('normaliza el texto de búsqueda quitando espacios', async () => {
+    const repository = new FakeCoffeeRepository()
+
+    await new GetCoffeesUseCase(repository).execute({
+      page: 1,
+      limit: 12,
+      search: '  geisha  ',
+    })
+
+    expect(repository.lastFilters?.search).toBe('geisha')
+  })
+
+  it('deja la búsqueda en undefined si viene solo con espacios', async () => {
+    const repository = new FakeCoffeeRepository()
+
+    await new GetCoffeesUseCase(repository).execute({
+      page: 1,
+      limit: 12,
+      search: '   ',
+    })
+
+    expect(repository.lastFilters?.search).toBeUndefined()
+  })
+
+  it('rechaza una región que no existe en el catálogo cerrado', async () => {
+    const repository = new FakeCoffeeRepository()
+
+    await expect(
+      new GetCoffeesUseCase(repository).execute({
+        page: 1,
+        limit: 12,
+        region: 'magdalena' as CoffeeRegion,
+      }),
+    ).rejects.toThrow(/magdalena/)
+  })
+
+  it('rechaza un proceso inválido', async () => {
+    const repository = new FakeCoffeeRepository()
+
+    await expect(
+      new GetCoffeesUseCase(repository).execute({
+        page: 1,
+        limit: 12,
+        process: 'karma' as CoffeeProcess,
+      }),
+    ).rejects.toThrow(/karma/)
+  })
+
+  it('rechaza un tueste inválido', async () => {
+    const repository = new FakeCoffeeRepository()
+
+    await expect(
+      new GetCoffeesUseCase(repository).execute({
+        page: 1,
+        limit: 12,
+        roastLevel: 'x' as RoastLevel,
+      }),
+    ).rejects.toThrow(/x/)
+  })
+
+  it('rechaza una página cero o negativa', async () => {
+    const repository = new FakeCoffeeRepository()
+
+    await expect(new GetCoffeesUseCase(repository).execute({ page: 0, limit: 12 })).rejects.toThrow(
+      /página/i,
+    )
+    await expect(
+      new GetCoffeesUseCase(repository).execute({ page: -1, limit: 12 }),
+    ).rejects.toThrow(/página/i)
+  })
+
+  it('rechaza un límite de cero', async () => {
+    const repository = new FakeCoffeeRepository()
+
+    await expect(new GetCoffeesUseCase(repository).execute({ page: 1, limit: 0 })).rejects.toThrow(
+      /límite/i,
+    )
+  })
+
+  it('rechaza un límite excesivo', async () => {
+    const repository = new FakeCoffeeRepository()
+
+    await expect(
+      new GetCoffeesUseCase(repository).execute({ page: 1, limit: 101 }),
+    ).rejects.toThrow(/límite/i)
   })
 })

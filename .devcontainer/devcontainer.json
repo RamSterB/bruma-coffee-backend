@@ -36,7 +36,8 @@
         "DB_USER": "postgres",
         "DB_PASSWORD": "postgres",
         "DB_NAME": "bruma_coffee",
-        "DB_SYNCHRONIZE": "true",
+        "DB_SYNCHRONIZE": "false",
+        "DB_MIGRATIONS_RUN": "true",
         "PGPASSWORD": "postgres"
     },
 

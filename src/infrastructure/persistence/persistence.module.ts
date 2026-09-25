@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common'
 import { TypeOrmModule } from '@nestjs/typeorm'
 import { CoffeeRepositoryPort } from '../../domain/ports/coffee.repository'
+import { CoffeeVariantTypeOrmEntity } from './coffee-variant.typeorm.entity'
 import { CoffeeTypeOrmEntity } from './coffee.typeorm.entity'
 import { CoffeeTypeOrmRepository } from './coffee.typeorm.repository'
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CoffeeTypeOrmEntity])],
+  imports: [TypeOrmModule.forFeature([CoffeeTypeOrmEntity, CoffeeVariantTypeOrmEntity])],
   providers: [
     {
       provide: CoffeeRepositoryPort,
