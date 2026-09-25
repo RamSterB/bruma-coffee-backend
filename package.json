@@ -19,17 +19,19 @@
     "orm:init": "typeorm-ts-node-commonjs -d ./src/config/data-source.ts",
     "m:gen": "npm run orm:init migration:generate",
     "m:run": "npm run orm:init migration:run",
-    "m:revert": "npm run orm:init migration:revert"
+    "m:revert": "npm run orm:init migration:revert",
+    "test:e2e": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest-e2e.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.spec.json"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.0",
     "@nestjs/config": "^12.0.0",
     "@nestjs/core": "^12.0.0",
-    "@nestjs/platform-express": "^12.0.0",
     "@nestjs/swagger": "^12.0.0",
     "@nestjs/typeorm": "^12.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.0",
+    "helmet": "^8.3.0",
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.0",
@@ -37,28 +39,48 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
+    "@jest/globals": "^30.5.2",
     "@nestjs/cli": "^12.0.0",
+    "@nestjs/platform-express": "^12.0.0",
     "@nestjs/schematics": "^12.0.0",
+    "@nestjs/testing": "^12.1.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.0.0",
+    "@types/supertest": "^7.2.1",
     "eslint": "^9.0.0",
     "globals": "^15.0.0",
     "jest": "^30.0.0",
     "prettier": "^3.3.0",
+    "supertest": "^7.3.0",
     "ts-jest": "^29.2.0",
     "ts-node": "^10.9.0",
     "typescript": "^5.9.0",
     "typescript-eslint": "^8.0.0"
   },
   "jest": {
-    "moduleFileExtensions": ["js", "json", "ts"],
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
     "rootDir": "src",
+    "testEnvironment": "node",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
+      "^.+\\.(t|j)s$": [
+        "ts-jest",
+        {
+          "tsconfig": "tsconfig.spec.json",
+          "useESM": true
+        }
+      ]
     },
-    "collectCoverageFrom": ["**/*.(t|j)s"],
-    "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "extensionsToTreatAsEsm": [
+      ".ts"
+    ],
+    "collectCoverageFrom": [
+      "**/*.(t|j)s"
+    ],
+    "coverageDirectory": "../coverage"
   }
 }

@@ -1,20 +1,13 @@
-import { ValidationPipe } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import { AppModule } from './app.module'
+import { configureApp } from './app.setup'
+import { readAllowedOrigins } from './config/allowed-origins'
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule)
 
-  app.setGlobalPrefix('api')
-  app.enableCors({ origin: true, credentials: true })
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-      forbidNonWhitelisted: true,
-    }),
-  )
+  configureApp(app, { allowedOrigins: readAllowedOrigins(process.env.CORS_ALLOWED_ORIGINS) })
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Bruma Coffee API')
