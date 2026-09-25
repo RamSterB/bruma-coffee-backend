@@ -1,0 +1,53 @@
+{
+    "name": "Bruma Coffee Backend Dev",
+    "build": { "dockerfile": "Dockerfile" },
+    "workspaceFolder": "/workspace",
+
+    "runArgs": [
+        "-p",
+        "8000:8000",
+        "--add-host=host.docker.internal:host-gateway",
+        "--network=brumacoffeenet",
+        "--name=bruma-coffee-backend"
+    ],
+
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "GitHub.copilot",
+                "dbaeumer.vscode-eslint",
+                "esbenp.prettier-vscode",
+                "usernamehw.errorlens",
+                "postman.postman-for-vscode",
+                "eamodio.gitlens",
+                "mtxr.sqltools",
+                "mtxr.sqltools-driver-pg",
+                "arjun.swagger-viewer"
+            ]
+        }
+    },
+
+    "remoteUser": "node",
+
+    "containerEnv": {
+        "PORT": "8000",
+        "DB_HOST": "postgres16",
+        "DB_PORT": "5432",
+        "DB_USER": "postgres",
+        "DB_PASSWORD": "postgres",
+        "DB_NAME": "bruma_coffee",
+        "DB_SYNCHRONIZE": "true",
+        "PGPASSWORD": "postgres"
+    },
+
+    "forwardPorts": [8000, 5432],
+
+    "postCreateCommand": "git config --global --add safe.directory /workspace && git config --global user.name ramsterb && git config --global user.email joseluisramosa337@gmail.com && pnpm install && pg_isready -h postgres16 -U postgres && (psql -h postgres16 -U postgres -tc \"SELECT 1 FROM pg_database WHERE datname='bruma_coffee'\" | grep -q 1 || psql -h postgres16 -U postgres -c 'CREATE DATABASE bruma_coffee')",
+
+    "mounts": [
+        "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+        "source=${localEnv:HOME}/.ssh,target=/home/node/.ssh,type=bind"
+    ],
+
+    "features": {}
+}
