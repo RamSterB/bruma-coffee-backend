@@ -12,7 +12,15 @@ API de **Bruma Coffee** construida con **NestJS**, **TypeORM** y **PostgreSQL**,
 | Base de datos | PostgreSQL 16 |
 | Validación | class-validator + class-transformer |
 | Documentación | @nestjs/swagger (UI en `/api/docs`) |
-| Gestor de paquetes | pnpm (corepack) |
+| Gestor de paquetes | pnpm 10.28.0 (corepack, versión fija) |
+
+> **Nota pnpm (importante):** la versión está **fijada a `10.28.0`** en los tres entornos
+> (local, devcontainer y `"packageManager"` de `package.json`) porque el lockfile se genera con esa
+> versión. No la subas a `latest`: pnpm 12 aplica una política supply-chain (`minimum-release-age`)
+> que **hace fallar la instalación limpia del devcontainer** con
+> `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION` cuando hay paquetes recién publicados (p. ej.
+> `vite@8.3.1` / `rolldown@1.2.11`). Si algún día quieres subirla, hazlo en los tres sitios a la
+> vez y regenera los lockfiles.
 
 ## Requisitos
 
