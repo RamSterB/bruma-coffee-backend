@@ -1,11 +1,13 @@
 import { Module } from '@nestjs/common'
+import { APP_FILTER } from '@nestjs/core'
 import { ConfigModule } from '@nestjs/config'
 import { TypeOrmModule } from '@nestjs/typeorm'
-import { CreateCoffeeUseCase } from './application/use-cases/create-coffee.use-case'
+import { GetCoffeeByIdUseCase } from './application/use-cases/get-coffee-by-id.use-case'
 import { GetCoffeesUseCase } from './application/use-cases/get-coffees.use-case'
 import { databaseConfig } from './config/database.config'
 import { PersistenceModule } from './infrastructure/persistence/persistence.module'
 import { CoffeeController } from './interfaces/http/coffee.controller'
+import { DomainExceptionFilter } from './interfaces/http/filters/domain-exception.filter'
 
 @Module({
   imports: [
@@ -14,6 +16,10 @@ import { CoffeeController } from './interfaces/http/coffee.controller'
     PersistenceModule,
   ],
   controllers: [CoffeeController],
-  providers: [CreateCoffeeUseCase, GetCoffeesUseCase],
+  providers: [
+    GetCoffeesUseCase,
+    GetCoffeeByIdUseCase,
+    { provide: APP_FILTER, useClass: DomainExceptionFilter },
+  ],
 })
 export class AppModule {}
