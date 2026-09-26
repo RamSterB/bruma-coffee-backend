@@ -15,6 +15,33 @@ jobs:
     name: Lint, tipos, tests y auditoría
     runs-on: ubuntu-latest
 
+    # Los tests de integración corren contra PostgreSQL real: mockear el
+    # QueryBuilder no detectaría un EXISTS mal escrito ni un CHECK que no
+    # rechaza lo que debe. La versión se fija para que la CI no valide contra
+    # una versión distinta a la de desarrollo.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: bruma_coffee
+      DB_NAME_TEST: bruma_coffee_test
+
     steps:
       - name: Clonar el repositorio
         uses: actions/checkout@v4
@@ -36,6 +63,12 @@ jobs:
 
       - name: Typecheck
         run: pnpm typecheck
+
+      - name: Tests de integración (PostgreSQL)
+        run: pnpm test:integration
+
+      - name: Tests unitarios
+        run: pnpm test:unit
 
       - name: Tests con cobertura
         run: pnpm test:cov
