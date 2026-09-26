@@ -69,7 +69,9 @@ las variables (`DB_HOST=postgres16`, etc.) vía `containerEnv`.
 | `DB_USER` | Usuario de la BD | `postgres` |
 | `DB_PASSWORD` | Password de la BD | `postgres` |
 | `DB_NAME` | Nombre de la BD | `bruma_coffee` |
-| `DB_SYNCHRONIZE` | Auto-sincroniza el esquema. **Solo true en dev** | `true` |
+
+No hay variable `DB_SYNCHRONIZE`: el esquema se gestiona **solo** con migraciones y
+`synchronize` está en `false` fijo en el código.
 
 ## Comandos
 
@@ -84,7 +86,9 @@ pnpm test:cov     # cobertura
 
 ### Migraciones
 
-En producción `DB_SYNCHRONIZE` debe ser `false` y el esquema se gestiona con migraciones:
+El esquema se gestiona con migraciones de TypeORM, en todos los entornos. `synchronize: false`
+está escrito en `src/config/data-source.ts` y no se puede activar por variable de entorno, a
+propósito: `synchronize` puede borrar datos sin avisar.
 
 ```bash
 pnpm m:gen -- ./migrations/mi-migracion   # genera una migración
@@ -92,10 +96,80 @@ pnpm m:run                                # aplica migraciones pendientes
 pnpm m:revert                             # revierte la última
 ```
 
-## Swagger
+## Endpoints
 
-La documentación de la API está en **`http://localhost:8000/api/docs`** (prefijo global `/api`).
-Los endpoints actuales: `GET/POST /api/coffee`.
+La documentación interactiva está en **`http://localhost:8000/api/docs`** (prefijo global `/api`),
+generada con decoradores de `@nestjs/swagger`. Cuando la API esté desplegada, la URL pública se
+añade en este README.
+
+| Método | Ruta | Qué hace |
+|---|---|---|
+| `GET` | `/api/coffee` | Lista paginada y filtrable del catálogo. Filtros: `region`, `process`, `roastLevel`, `page`, `limit` |
+| `GET` | `/api/coffee/:id` | Detalle de un café con sus variantes de peso |
+| `GET` | `/api/variants?variantIds=<uuid>,<uuid>` | Resuelve variantes por identificador para el carrito. Máximo 50 ids |
+
+**No hay endpoints de escritura.** El catálogo se siembra con migraciones y no se expone creación
+de productos por API: el contenido de la tienda es un dato, no algo que edite el cliente.
+
+## Modelo de datos
+
+El esquema se gestiona con migraciones de TypeORM. Hoy hay dos tablas, que son las que sostiene el
+catálogo y el carrito:
+
+```
+┌──────────────────────────────┐        ┌───────────────────────────────────┐
+│ coffees                      │ 1    n │ coffee_variants                   │
+├──────────────────────────────┤────────│───────────────────────────────────┤
+│ id             uuid PK       │        │ id             uuid PK             │
+│ name           varchar(120)  │        │ coffee_id      uuid FK → coffees   │
+│ description    text          │        │ weight_grams   int > 0            │
+│ region         varchar(30)   │        │ price          numeric(12,2) ≥ 0  │
+│ process        varchar(20)   │        │ stock          int ≥ 0            │
+│ roast_level    varchar(20)   │        │ is_active      boolean             │
+│ tasting_notes  text[]        │        │ created_at / updated_at           │
+│ search_index   text          │        │ UNIQUE (coffee_id, weight_grams)  │
+│ is_active      boolean       │        └───────────────────────────────────┘
+│ created_at / updated_at      │          ON DELETE CASCADE desde coffees
+└──────────────────────────────┘
+```
+
+Detalles que no se ven en el diagrama y sí importan:
+
+- **Enums cerrados con `CHECK` en base de datos.** `region`, `process` y `roast_level` están
+  validados en el dominio *y* con una restricción `CHECK` en la tabla, para que ningún INSERT que
+  se cuele por la backdoor pueda meter un valor inventado.
+- **`search_index`** se añadió en una migración aparte y se rellena en la aplicación con el
+  nombre, la región, el proceso, el nivel de tueste y las notas de cata, todo sin acentos ni
+  mayúsculas. Existe para que la búsqueda se pueda probar sin depender de `unaccent`, que depende
+  de la configuración regional del servidor.
+- **`price_from` no es una columna.** Es un método del dominio que devuelve el precio de la
+  variante más barata, o `null` si el café no tiene variantes activas. Se calcula al leer, porque
+  almacenarlo se desincronizaría en cuanto cambiara el precio de una variante.
+- Índices en `region`, `roast_level`, `process`, `is_active`, `search_index`, `coffee_id` y `stock`,
+  que son las columnas por las que se filtra.
+
+Las tablas de órdenes, pagos, carritos y usuarios están **diseñadas pero todavía no migradas**: el
+catálogo es lo único que está en la base de datos hoy.
+
+## Cobertura
+
+```bash
+pnpm test:cov
+```
+
+| Capa | Cobertura |
+|---|---|
+| `application/use-cases` | 100 % |
+| `domain` (entidades, enums, errores, búsqueda) | 100 % |
+| `infrastructure/persistence` | 95 % stmts · 93 % branches |
+| `interfaces/http` | Parcial: falta cubrir el controlador de catálogo |
+| **Global** | **78 % stmts · 85 % branches · 79 % funcs · 78 % lines** |
+
+El umbral que impone CI tiene dos partes: **69/81/70/69** (statements/branches/functions/lines) de
+forma global, y **90/88/85/92** para `infrastructure/persistence`, que es la capa que más se toca.
+Los dos están por debajo de lo que debería exigir un proyecto en producción, y subirlos es trabajo
+abierto: el hueco real no es un número, es que `CoffeeController` todavía no tiene ni un test, y es
+el único archivo de `src/` con 0 % de cobertura.
 
 ## Acceso desde Windows
 
