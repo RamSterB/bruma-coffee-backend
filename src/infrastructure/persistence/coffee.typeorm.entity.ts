@@ -11,7 +11,15 @@ import { Coffee } from '../../domain/entities/coffee.entity'
 import { CoffeeProcess } from '../../domain/enums/coffee-process.enum'
 import { CoffeeRegion } from '../../domain/enums/coffee-region.enum'
 import { RoastLevel } from '../../domain/enums/roast-level.enum'
-import { CoffeeVariantTypeOrmEntity } from './coffee-variant.typeorm.entity'
+// Import de tipo para la relación, que se declara por el nombre de la entidad
+// y no necesita el valor. El toDomain de la variante sí lo necesita, y ese
+// import no genera ciclo en runtime porque la variante no importa este módulo
+// más que como tipo.
+import type { CoffeeVariantTypeOrmEntity } from './coffee-variant.typeorm.entity'
+import { CoffeeVariantTypeOrmEntity as VariantEntity } from './coffee-variant.typeorm.entity'
+
+// Nombre de la entidad CoffeeVariants, tal como TypeORM lo registra.
+const COFFEE_VARIANT_ENTITY_NAME = 'CoffeeVariantTypeOrmEntity'
 
 @Entity('coffees')
 @Index('idx_coffees_region', ['region'])
@@ -48,7 +56,7 @@ export class CoffeeTypeOrmEntity {
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive!: boolean
 
-  @OneToMany(() => CoffeeVariantTypeOrmEntity, (variant) => variant.coffee)
+  @OneToMany(COFFEE_VARIANT_ENTITY_NAME, 'coffee')
   variants!: CoffeeVariantTypeOrmEntity[]
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
@@ -67,9 +75,7 @@ export class CoffeeTypeOrmEntity {
       region: entity.region,
       tastingNotes: entity.tastingNotes,
       isActive: entity.isActive,
-      variants: (entity.variants ?? []).map((variant) =>
-        CoffeeVariantTypeOrmEntity.toDomain(variant),
-      ),
+      variants: (entity.variants ?? []).map((variant) => VariantEntity.toDomain(variant)),
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
     })
