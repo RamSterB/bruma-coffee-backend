@@ -7,6 +7,7 @@ import type {
   CoffeeFilters,
   CoffeeRepositoryPort,
   PaginatedCoffees,
+  VariantWithCoffee,
 } from '../domain/ports/coffee.repository'
 
 export const buildCoffee = (id: string, name = `Café ${id}`): Coffee =>
@@ -33,6 +34,19 @@ export const buildCoffee = (id: string, name = `Café ${id}`): Coffee =>
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
   })
 
+export const buildCoffeeVariant = (
+  id: string,
+  overrides: Partial<{ weightGrams: number; price: number; stock: number; isActive: boolean }> = {},
+): CoffeeVariant =>
+  CoffeeVariant.reconstitute({
+    id,
+    weightGrams: overrides.weightGrams ?? 250,
+    price: overrides.price ?? 42000,
+    stock: overrides.stock ?? 10,
+    isActive: overrides.isActive ?? true,
+    coffeeId: 'coffee-1',
+  })
+
 export const buildPage = (
   items: Coffee[],
   total: number,
@@ -48,6 +62,8 @@ export const buildPage = (
 
 export class FakeCoffeeRepository implements CoffeeRepositoryPort {
   public lastFilters: CoffeeFilters | null = null
+  public lastVariantIds: string[] | null = null
+  public variantsByIds: VariantWithCoffee[] = []
 
   constructor(
     private readonly result: PaginatedCoffees = buildPage([], 0),
@@ -61,5 +77,10 @@ export class FakeCoffeeRepository implements CoffeeRepositoryPort {
 
   async findById(id: string): Promise<Coffee | null> {
     return this.byId?.id === id ? this.byId : null
+  }
+
+  async findVariantsByIds(ids: string[]): Promise<VariantWithCoffee[]> {
+    this.lastVariantIds = ids
+    return this.variantsByIds.filter((linea) => ids.includes(linea.variant.id as string))
   }
 }

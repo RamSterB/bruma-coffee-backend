@@ -2,6 +2,7 @@ import type { DataSource } from 'typeorm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals'
 import { CoffeeTypeOrmRepository } from './coffee.typeorm.repository'
 import { CoffeeTypeOrmEntity } from './coffee.typeorm.entity'
+import { CoffeeVariantTypeOrmEntity } from './coffee-variant.typeorm.entity'
 import {
   aVisibleCoffee,
   seedCoffee,
@@ -28,7 +29,10 @@ describe('CoffeeTypeOrmRepository contra PostgreSQL', () => {
 
   beforeAll(async () => {
     dataSource = await resetTestDatabase()
-    repository = new CoffeeTypeOrmRepository(dataSource.getRepository(CoffeeTypeOrmEntity))
+    repository = new CoffeeTypeOrmRepository(
+      dataSource.getRepository(CoffeeTypeOrmEntity),
+      dataSource.getRepository(CoffeeVariantTypeOrmEntity),
+    )
   })
 
   afterAll(async () => {
@@ -317,6 +321,67 @@ describe('CoffeeTypeOrmRepository contra PostgreSQL', () => {
       )
 
       expect(await repository.findById(coffee.id)).toBeNull()
+    })
+  })
+
+  describe('findVariantsByIds', () => {
+    const variantIdOf = async (coffeeName: string, overrides = {}): Promise<string> => {
+      const coffee = await seedCoffee(
+        dataSource,
+        aVisibleCoffee({ name: coffeeName, ...overrides }),
+      )
+
+      return (
+        await dataSource.getRepository(CoffeeVariantTypeOrmEntity).findOneOrFail({
+          where: { coffeeId: coffee.id },
+        })
+      ).id
+    }
+
+    it('devuelve la variante con el nombre de su café', async () => {
+      const id = await variantIdOf('Nariño')
+
+      const [linea] = await repository.findVariantsByIds([id])
+
+      expect(linea.coffeeName).toBe('Nariño')
+      expect(linea.variant.id).toBe(id)
+      expect(linea.variant.stock).toBe(10)
+      expect(linea.variant.coffeeId).not.toBeNull()
+    })
+
+    it('resuelve varias variantes de distintos cafés de una vez', async () => {
+      const primero = await variantIdOf('Nariño')
+      const segundo = await variantIdOf('Huila')
+
+      const lineas = await repository.findVariantsByIds([primero, segundo])
+
+      expect(lineas.map((linea) => linea.coffeeName).sort()).toEqual(['Huila', 'Nariño'])
+    })
+
+    it('omite la variante si su café está inactivo', async () => {
+      const id = await variantIdOf('Oculto', { isActive: false })
+
+      expect(await repository.findVariantsByIds([id])).toEqual([])
+    })
+
+    it('omite la variante si la variante está inactiva', async () => {
+      const id = await variantIdOf('Inactiva', {
+        variants: [{ ...withStock(), isActive: false }],
+      })
+
+      expect(await repository.findVariantsByIds([id])).toEqual([])
+    })
+
+    it('no falla con ids que no existen', async () => {
+      const id = await variantIdOf('Existe')
+
+      const lineas = await repository.findVariantsByIds([id, UNKNOWN_ID])
+
+      expect(lineas).toHaveLength(1)
+    })
+
+    it('no consulta nada si no hay ids', async () => {
+      expect(await repository.findVariantsByIds([])).toEqual([])
     })
   })
 })
