@@ -11,7 +11,14 @@ import {
   UpdateDateColumn,
 } from 'typeorm'
 import { CoffeeVariant } from '../../domain/entities/coffee-variant.entity'
-import { CoffeeTypeOrmEntity } from './coffee.typeorm.entity'
+// Import de tipo: la relación se declara por el nombre de la entidad, así que
+// no hace falta el valor en tiempo de ejecución. Esto además rompe el ciclo
+// variant -> coffee -> variant, que con emitDecoratorMetadata hacía fallar la
+// carga cuando este módulo se resolvía antes que coffee.typeorm.entity.
+import type { CoffeeTypeOrmEntity } from './coffee.typeorm.entity'
+
+// Nombre de la entidad Coffees, tal como TypeORM lo registra.
+const COFFEE_ENTITY_NAME = 'CoffeeTypeOrmEntity'
 
 @Entity('coffee_variants')
 @Unique('uq_variants_coffee_weight', ['coffeeId', 'weightGrams'])
@@ -27,9 +34,7 @@ export class CoffeeVariantTypeOrmEntity {
   @Column({ name: 'coffee_id', type: 'uuid' })
   coffeeId!: string
 
-  @ManyToOne(() => CoffeeTypeOrmEntity, (coffee) => coffee.variants, {
-    onDelete: 'CASCADE',
-  })
+  @ManyToOne(COFFEE_ENTITY_NAME, 'variants', { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'coffee_id' })
   coffee!: CoffeeTypeOrmEntity
 

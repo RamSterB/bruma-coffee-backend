@@ -7,22 +7,25 @@
   "packageManager": "pnpm@10.28.0",
   "scripts": {
     "build": "nest build",
-    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
-    "lint": "eslint \"{src,test,migrations}/**/*.ts\"",
-    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand",
     "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --watch",
-    "test:cov": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --coverage",
+    "test:cov": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --coverage --runInBand",
     "orm:init": "typeorm-ts-node-commonjs -d ./src/config/data-source.ts",
     "m:gen": "npm run orm:init migration:generate",
     "m:run": "npm run orm:init migration:run",
     "m:revert": "npm run orm:init migration:revert",
     "test:e2e": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest-e2e.json",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.spec.json",
-    "lint:fix": "eslint \"{src,test,migrations}/**/*.ts\" --fix"
+    "lint:fix": "eslint \"src/**/*.ts\" --fix",
+    "test:unit": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --testPathIgnorePatterns=\\.integration\\.spec\\.ts$",
+    "test:integration": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js \\.integration\\.spec\\.ts$ --runInBand"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.0",
@@ -82,6 +85,25 @@
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],
-    "coverageDirectory": "../coverage"
+    "coverageDirectory": "../coverage",
+    "testPathIgnorePatterns": [],
+    "coveragePathIgnorePatterns": [
+      "/node_modules/",
+      "/src/testing/"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "statements": 69,
+        "branches": 81,
+        "functions": 70,
+        "lines": 69
+      },
+      "src/infrastructure/persistence": {
+        "statements": 90,
+        "branches": 88,
+        "functions": 85,
+        "lines": 92
+      }
+    }
   }
 }
