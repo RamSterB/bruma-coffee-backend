@@ -1,4 +1,6 @@
 import {
+  BeforeInsert,
+  BeforeUpdate,
   Column,
   CreateDateColumn,
   Entity,
@@ -8,6 +10,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm'
 import { Coffee } from '../../domain/entities/coffee.entity'
+import { buildSearchIndex } from '../../domain/search/search-text'
 import { CoffeeProcess } from '../../domain/enums/coffee-process.enum'
 import { CoffeeRegion } from '../../domain/enums/coffee-region.enum'
 import { RoastLevel } from '../../domain/enums/roast-level.enum'
@@ -59,11 +62,32 @@ export class CoffeeTypeOrmEntity {
   @OneToMany(COFFEE_VARIANT_ENTITY_NAME, 'coffee')
   variants!: CoffeeVariantTypeOrmEntity[]
 
+  /**
+   * Copia sin acentos ni mayúsculas de lo que se puede buscar: nombre,
+   * descripción y notas de cata. Se recalcula en cada escritura para que no se
+   * quede desfasada del texto real. No se selecciona por defecto porque solo la
+   * usa el filtro de búsqueda.
+   *
+   * Se mantiene con un hook de la entidad, que TypeORM ejecuta en `save()`.
+   * Un `update()` del repositorio no pasa por los hooks, así que si algún día
+   * se escribe por esa vía hay que usar `save()` o recalcular la columna a mano;
+   * el test `coincide con la normalización de la aplicación en todas las filas`
+   * avisa si se queda desfasada.
+   */
+  @Column({ name: 'search_index', type: 'text', select: false })
+  searchIndex!: string
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date
 
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt!: Date
+
+  @BeforeInsert()
+  @BeforeUpdate()
+  private syncSearchIndex(): void {
+    this.searchIndex = buildSearchIndex(this)
+  }
 
   static toDomain(entity: CoffeeTypeOrmEntity): Coffee {
     return Coffee.reconstitute({

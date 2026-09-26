@@ -8,7 +8,24 @@ import {
   CoffeeRepositoryPort,
   PaginatedCoffees,
 } from '../../domain/ports/coffee.repository'
+import { normalizeForSearch } from '../../domain/search/search-text'
 import { CoffeeTypeOrmEntity } from './coffee.typeorm.entity'
+
+/**
+ * ILIKE trata `%` y `_` como comodines. Si el usuario los escribe queriendo
+ * literales ("50%"), sin escaparlos la búsqueda devolvería de más, así que se
+ * neutralizan con el carácter de escape declarado abajo.
+ */
+const LIKE_METACHARACTERS = /[\\%_]/g
+
+/**
+ * El café guarda en `search_index` una copia sin acentos ni mayúsculas de su
+ * nombre, descripción y notas de cata. Normalizar también el término del
+ * usuario es lo que hace que "narino" encuentre "Nariño" y que "citrica"
+ * encuentre "cítrica".
+ */
+const containsIgnoringAccents = (term: string): string =>
+  `%${normalizeForSearch(term).replace(LIKE_METACHARACTERS, (character) => `\\${character}`)}%`
 
 @Injectable()
 export class CoffeeTypeOrmRepository implements CoffeeRepositoryPort {
@@ -75,13 +92,9 @@ export class CoffeeTypeOrmRepository implements CoffeeRepositoryPort {
     }
 
     if (filters.search !== undefined) {
-      query.andWhere(
-        `(coffee.name ILIKE :search OR coffee.description ILIKE :search
-          OR EXISTS (
-            SELECT 1 FROM unnest(coffee.tasting_notes) AS note WHERE note ILIKE :search
-          ))`,
-        { search: `%${filters.search}%` },
-      )
+      query.andWhere(`coffee.search_index ILIKE :search ESCAPE '\\'`, {
+        search: containsIgnoringAccents(filters.search),
+      })
     }
   }
 }
