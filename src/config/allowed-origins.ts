@@ -1,7 +1,8 @@
 const DEVELOPMENT_ORIGIN = 'http://localhost:5173'
 const WILDCARD = '*'
 
-const isLocalhostOrigin = (origin: string): boolean => /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+const isLocalhostOrigin = (origin: string): boolean =>
+  /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
 
 const assertValidOrigin = (origin: string): void => {
   if (origin === WILDCARD) {
