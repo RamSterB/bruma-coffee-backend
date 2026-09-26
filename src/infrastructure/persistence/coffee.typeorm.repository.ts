@@ -7,9 +7,11 @@ import {
   CoffeeFilters,
   CoffeeRepositoryPort,
   PaginatedCoffees,
+  VariantWithCoffee,
 } from '../../domain/ports/coffee.repository'
 import { normalizeForSearch } from '../../domain/search/search-text'
 import { CoffeeTypeOrmEntity } from './coffee.typeorm.entity'
+import { CoffeeVariantTypeOrmEntity } from './coffee-variant.typeorm.entity'
 
 /**
  * ILIKE trata `%` y `_` como comodines. Si el usuario los escribe queriendo
@@ -32,6 +34,8 @@ export class CoffeeTypeOrmRepository implements CoffeeRepositoryPort {
   constructor(
     @InjectRepository(CoffeeTypeOrmEntity)
     private readonly ormRepository: Repository<CoffeeTypeOrmEntity>,
+    @InjectRepository(CoffeeVariantTypeOrmEntity)
+    private readonly variantRepository: Repository<CoffeeVariantTypeOrmEntity>,
   ) {}
 
   async findAll(filters: CoffeeFilters): Promise<PaginatedCoffees> {
@@ -71,6 +75,31 @@ export class CoffeeTypeOrmRepository implements CoffeeRepositoryPort {
     })
 
     return entity === null ? null : CoffeeTypeOrmEntity.toDomain(entity)
+  }
+
+  /**
+   * El carrito viene con una lista de ids y necesita precio, stock y nombre del
+   * café de cada uno. Se resuelve con un solo `IN` sobre las variantes y un
+   * join al café para el nombre, en vez de un id por consulta. Los filtros de
+   * actividad van en SQL: lo que no se puede comprar no se devuelve.
+   */
+  async findVariantsByIds(ids: string[]): Promise<VariantWithCoffee[]> {
+    if (ids.length === 0) {
+      return []
+    }
+
+    const entities = await this.variantRepository
+      .createQueryBuilder('variant')
+      .innerJoinAndSelect('variant.coffee', 'coffee')
+      .where('variant.id IN (:...ids)', { ids })
+      .andWhere('variant.is_active = true')
+      .andWhere('coffee.is_active = true')
+      .getMany()
+
+    return entities.map((entity) => ({
+      variant: CoffeeVariantTypeOrmEntity.toDomain(entity),
+      coffeeName: entity.coffee.name,
+    }))
   }
 
   private applyFilters(
