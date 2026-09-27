@@ -1,5 +1,17 @@
 import { Type } from 'class-transformer'
-import { ArrayMaxSize, IsArray, IsInt, IsUUID, Max, Min, ValidateNested } from 'class-validator'
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsInt,
+  IsString,
+  IsUUID,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+  ValidateNested,
+} from 'class-validator'
 import { ApiProperty } from '@nestjs/swagger'
 
 /**
@@ -159,4 +171,61 @@ export class OrderSummaryDto {
     description: 'Si el envio quedo gratis por alcanzar el umbral, para poder decirlo en el modal',
   })
   isFreeShipping: boolean
+}
+
+export class ShippingDataDto {
+  @ApiProperty({ example: 'Persona Compradora' })
+  @IsString()
+  @MinLength(3, { message: 'El nombre necesita al menos 3 caracteres' })
+  @MaxLength(120)
+  fullName: string
+
+  @ApiProperty({ example: '1098765434', description: 'Documento, con o sin puntos y guiones' })
+  @IsString()
+  @Matches(/^[\d.\s()-]+$/, { message: 'El documento solo lleva numeros' })
+  @MaxLength(20)
+  documentNumber: string
+
+  @ApiProperty({
+    example: '3001234567',
+    description:
+      'Celular de 10 digitos. No se aceptan fijos: un pedido se entrega a un telefono que la persona lleva encima.',
+  })
+  @IsString()
+  // Aqui solo se miran los caracteres. El largo lo comprueba el dominio, que
+  // quita espacios, guiones y el prefijo de pais antes de contar: medir aqui la
+  // cadena cruda rechazaria "300 123 4567", que es como lo escribe la gente.
+  @Matches(/^[\d+\s()-]+$/, { message: 'El telefono solo lleva numeros' })
+  @MaxLength(20)
+  phone: string
+
+  @ApiProperty({ example: 'Carrera 7 con Calle 72, casa 3' })
+  @IsString()
+  @MinLength(5, { message: 'La direccion necesita al menos 5 caracteres' })
+  @MaxLength(200)
+  address: string
+
+  @ApiProperty({ example: 'Bogotá' })
+  @IsString()
+  @MinLength(2, { message: 'La ciudad es obligatoria' })
+  @MaxLength(80)
+  city: string
+
+  @ApiProperty({ example: 'Cundinamarca' })
+  @IsString()
+  @MinLength(2, { message: 'El departamento es obligatorio' })
+  @MaxLength(40)
+  department: string
+}
+
+export class ShippingQuoteDto extends OrderSummaryDto {
+  @ApiProperty({ type: ShippingDataDto })
+  shippingData: ShippingDataDto
+
+  @ApiProperty({
+    example: false,
+    description:
+      'Siempre false aqui: los datos se confirmaran con la orden. Esta llamada solo valida y devuelve el total.',
+  })
+  persisted: boolean
 }

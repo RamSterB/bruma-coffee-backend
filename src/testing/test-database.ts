@@ -5,12 +5,15 @@ import { CustomerTypeOrmEntity } from '../infrastructure/persistence/customer.ty
 import { RefreshTokenTypeOrmEntity } from '../infrastructure/persistence/refresh-token.typeorm.entity'
 import { CartTypeOrmEntity } from '../infrastructure/persistence/cart.typeorm.entity'
 import { CartItemTypeOrmEntity } from '../infrastructure/persistence/cart-item.typeorm.entity'
+import { DepartmentTypeOrmEntity } from '../infrastructure/persistence/department.typeorm.entity'
+import { CityTypeOrmEntity } from '../infrastructure/persistence/city.typeorm.entity'
 import { UserTypeOrmEntity } from '../infrastructure/persistence/user.typeorm.entity'
 import { CreateAccountTables1759000000000 } from '../migrations/1759000000000-CreateAccountTables'
 import { SeedAccounts1759000001000 } from '../migrations/1759000001000-SeedAccounts'
 import { CreateCatalogTables1758800000000 } from '../migrations/1758800000000-CreateCatalogTables'
 import { AddCoffeeSearchIndex1758900002000 } from '../migrations/1758900002000-AddCoffeeSearchIndex'
 import { CreateCartTables1759100000000 } from '../migrations/1759100000000-CreateCartTables'
+import { CreateDepartmentsAndCities1759200000000 } from '../migrations/1759200000000-CreateDepartmentsAndCities'
 
 /**
  * Infraestructura para los tests de integración contra PostgreSQL real.
@@ -72,6 +75,8 @@ export const testDataSourceOptions = (database: string = TEST_DATABASE) => ({
     RefreshTokenTypeOrmEntity,
     CartTypeOrmEntity,
     CartItemTypeOrmEntity,
+    DepartmentTypeOrmEntity,
+    CityTypeOrmEntity,
   ],
   // El esquema lo crean las mismas migraciones que en producción, pero
   // importadas una a una: el glob de MIGRATIONS_GLOB depende de __dirname,
@@ -83,6 +88,7 @@ export const testDataSourceOptions = (database: string = TEST_DATABASE) => ({
     CreateAccountTables1759000000000,
     SeedAccounts1759000001000,
     CreateCartTables1759100000000,
+    CreateDepartmentsAndCities1759200000000,
   ],
   migrationsTableName: 'schema_migrations',
   logging: false,

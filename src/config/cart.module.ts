@@ -4,12 +4,16 @@ import { AddItemToCartUseCase } from '../application/use-cases/add-item-to-cart.
 import { ClearCartUseCase } from '../application/use-cases/clear-cart.use-case'
 import { GetCartUseCase } from '../application/use-cases/get-cart.use-case'
 import { GetOrderSummaryUseCase } from '../application/use-cases/get-order-summary.use-case'
+import { QuoteShippingUseCase } from '../application/use-cases/quote-shipping.use-case'
 import { MergeLocalCartUseCase } from '../application/use-cases/merge-local-cart.use-case'
 import { RemoveCartItemUseCase } from '../application/use-cases/remove-cart-item.use-case'
 import { UpdateCartItemQuantityUseCase } from '../application/use-cases/update-cart-item-quantity.use-case'
 import { CartRepositoryPort } from '../domain/ports/cart.repository'
+import { GeographyRepositoryPort } from '../domain/ports/geography.repository'
 import { PRICING_CONFIG, pricingConfig } from './pricing.config'
 import { PersistenceModule } from '../infrastructure/persistence/persistence.module'
+import { DepartmentTypeOrmEntity } from '../infrastructure/persistence/department.typeorm.entity'
+import { TypeOrmGeographyRepository } from '../infrastructure/persistence/geography.typeorm.repository'
 import { CartTypeOrmEntity } from '../infrastructure/persistence/cart.typeorm.entity'
 import { CartItemTypeOrmEntity } from '../infrastructure/persistence/cart-item.typeorm.entity'
 import { TypeOrmCartRepository } from '../infrastructure/persistence/cart.typeorm.repository'
@@ -22,7 +26,7 @@ import { CartController } from '../interfaces/http/cart/cart.controller'
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CartTypeOrmEntity, CartItemTypeOrmEntity]),
+    TypeOrmModule.forFeature([CartTypeOrmEntity, CartItemTypeOrmEntity, DepartmentTypeOrmEntity]),
     // PersistenceModule es quien publica CoffeeRepositoryPort, y el carrito lo
     // necesita para saber si una variante se puede comprar antes de guardarla.
     PersistenceModule,
@@ -34,11 +38,16 @@ import { CartController } from '../interfaces/http/cart/cart.controller'
       useClass: TypeOrmCartRepository,
     },
     {
+      provide: GeographyRepositoryPort,
+      useClass: TypeOrmGeographyRepository,
+    },
+    {
       provide: PRICING_CONFIG,
       useFactory: () => pricingConfig(),
     },
     GetCartUseCase,
     GetOrderSummaryUseCase,
+    QuoteShippingUseCase,
     AddItemToCartUseCase,
     UpdateCartItemQuantityUseCase,
     RemoveCartItemUseCase,

@@ -7,6 +7,12 @@ export class CreateAccountTables1759000000000 implements MigrationInterface {
     // El correo se compara sin distinguir mayusculas, y con citext el UNIQUE de
     // la base hace el trabajo sin depender de que el codigo normalice antes.
     await queryRunner.query('CREATE EXTENSION IF NOT EXISTS "citext"')
+    // Se instala aqui y no en la migracion del catalogo porque esta es la
+    // primera que corre, y un CREATE EXTENSION se puede pedir mas de una vez sin
+    // problema. La usa la comparacion de ciudades y departamentos, que tiene que
+    // ignorar tildes: si "Bogota" no encuentra "Bogota", el formulario rechaza lo
+    // que la persona acaba de escribir.
+    await queryRunner.query('CREATE EXTENSION IF NOT EXISTS "unaccent"')
 
     await queryRunner.query(`
       CREATE TABLE "customers" (
