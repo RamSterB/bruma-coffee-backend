@@ -21,11 +21,12 @@ import { UserTypeOrmEntity } from '../infrastructure/persistence/user.typeorm.en
 import { CustomerTypeOrmRepository } from '../infrastructure/persistence/customer.typeorm.repository'
 import { RefreshTokenTypeOrmRepository } from '../infrastructure/persistence/refresh-token.typeorm.repository'
 import { UserTypeOrmRepository } from '../infrastructure/persistence/user.typeorm.repository'
-import { authConfig } from './auth.config'
+import { AUTH_CONFIG, authConfig, type AuthConfig } from './auth.config'
 import { AuthController } from '../interfaces/http/auth/auth.controller'
 import { AdminGuard, CustomerGuard, JwtAuthGuard } from '../interfaces/http/auth/auth.guards'
 import { CsrfGuard } from '../interfaces/http/auth/csrf.guard'
-import { LoginRateLimitGuard } from '../interfaces/http/auth/login-rate-limit.guard'
+import { LoginRateLimitGuard } from '../interfaces/http/auth/login-rate-limit'
+import { LoginRateLimiter } from '../interfaces/http/auth/login-rate-limit.guard'
 
 @Global()
 @Module({
@@ -34,6 +35,11 @@ import { LoginRateLimitGuard } from '../interfaces/http/auth/login-rate-limit.gu
   ],
   controllers: [AuthController],
   providers: [
+    {
+      provide: AUTH_CONFIG,
+      useFactory: (config: ConfigService) => authConfig(config),
+      inject: [ConfigService],
+    },
     {
       provide: UserRepositoryPort,
       useClass: UserTypeOrmRepository,
@@ -48,18 +54,14 @@ import { LoginRateLimitGuard } from '../interfaces/http/auth/login-rate-limit.gu
     },
     {
       provide: PasswordHasherPort,
-      useFactory: (config: ConfigService) =>
-        new BcryptPasswordHasher(config.get<number>('BCRYPT_ROUNDS', 10)),
-      inject: [ConfigService],
+      useFactory: (auth: AuthConfig) => new BcryptPasswordHasher(auth.bcryptRounds),
+      inject: [AUTH_CONFIG],
     },
     {
       provide: SessionTokenPort,
-      useFactory: (config: ConfigService) => {
-        const auth = authConfig(config)
-
-        return new JwtSessionToken(auth.jwtSecret, auth.accessTtlSeconds, auth.refreshTtlSeconds)
-      },
-      inject: [ConfigService],
+      useFactory: (auth: AuthConfig) =>
+        new JwtSessionToken(auth.jwtSecret, auth.accessTtlSeconds, auth.refreshTtlSeconds),
+      inject: [AUTH_CONFIG],
     },
     {
       provide: MailerPort,
@@ -75,11 +77,16 @@ import { LoginRateLimitGuard } from '../interfaces/http/auth/login-rate-limit.gu
     AdminGuard,
     CsrfGuard,
     LoginRateLimitGuard,
+    LoginRateLimiter,
   ],
   exports: [
+    AUTH_CONFIG,
     UserRepositoryPort,
     CustomerRepositoryPort,
     RefreshTokenRepositoryPort,
+    // El guard de JWT vive en auth pero lo usan otros módulos (el carrito, por
+    // ejemplo), asi que el port del que depende tiene que salir de aqui.
+    SessionTokenPort,
     RegisterUseCase,
     LoginUseCase,
     RefreshSessionUseCase,
@@ -90,6 +97,7 @@ import { LoginRateLimitGuard } from '../interfaces/http/auth/login-rate-limit.gu
     AdminGuard,
     CsrfGuard,
     LoginRateLimitGuard,
+    LoginRateLimiter,
   ],
 })
 export class AuthModule {}

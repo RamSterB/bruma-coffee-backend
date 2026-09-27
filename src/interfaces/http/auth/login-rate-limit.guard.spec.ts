@@ -1,20 +1,24 @@
 import { jest } from '@jest/globals'
-import { ConfigService } from '@nestjs/config'
 import { HttpStatus } from '@nestjs/common'
-import { LoginRateLimitGuard } from './login-rate-limit.guard'
-
-const peticion = (ip: string, body: unknown) => ({
-  switchToHttp: () => ({
-    getRequest: () => ({ ip, body, headers: {} }),
-  }),
-  getHandler: () => () => undefined,
-  getClass: () => class {},
-})
+import { authConfig, type AuthConfig } from '../../../config/auth.config'
+import { LoginRateLimiter } from './login-rate-limit.guard'
 
 const LIMITE = 5
 
-const configCon = (valores: Record<string, unknown>): ConfigService =>
-  ({ get: (clave: string) => valores[clave] }) as unknown as ConfigService
+/**
+ * El limitador recibe la configuración ya resuelta, no el ConfigService: por eso
+ * aqui se construye con authConfig y no con un doble de rutas con puntos, que es
+ * justo lo que hacia pasar la configuracion en silencio.
+ */
+const configDe = (login: { maxAttempts: number; windowMs: number }): AuthConfig => {
+  const anterior = { ...process.env }
+  process.env.LOGIN_MAX_ATTEMPTS = String(login.maxAttempts)
+  process.env.LOGIN_WINDOW_MS = String(login.windowMs)
+  const config = authConfig({ get: () => undefined } as never)
+  process.env = anterior
+
+  return config
+}
 
 /**
  * El reloj se falsea en vez de esperar: dormir sesenta segundos en un test no es
@@ -32,152 +36,175 @@ const congelarReloj = () => {
   }
 }
 
-const montar = (login: Record<string, unknown> = { maxAttempts: LIMITE, windowMs: 60_000 }) => {
+const montar = (
+  login: { maxAttempts: number; windowMs: number } = { maxAttempts: LIMITE, windowMs: 60_000 },
+) => {
   const reloj = congelarReloj()
-  const guard = new LoginRateLimitGuard(configCon({ auth: { login } }))
+  const limiter = new LoginRateLimiter(configDe(login))
 
-  return { guard, reloj }
+  return { limiter, reloj }
 }
 
-const intentar = (guard: LoginRateLimitGuard, ip: string, body: unknown): boolean =>
-  guard.canActivate(peticion(ip, body) as never)
+const correo = 'a@ejemplo.com'
 
-const estaBloqueado = (guard: LoginRateLimitGuard, ip: string, body: unknown): boolean => {
+const estaBloqueado = (limiter: LoginRateLimiter, email: string, ip: string): boolean => {
   try {
-    intentar(guard, ip, body)
+    limiter.registra(email, ip)
+
     return false
   } catch (error) {
     return (error as { status?: number }).status === HttpStatus.TOO_MANY_REQUESTS
   }
 }
 
-describe('LoginRateLimitGuard', () => {
+describe('LoginRateLimiter', () => {
   afterEach(() => {
     jest.restoreAllMocks()
   })
 
   it('deja pasar los primeros cinco intentos', () => {
-    const { guard } = montar()
+    const { limiter } = montar()
 
     for (let intento = 0; intento < LIMITE; intento += 1) {
-      expect(intentar(guard, '1.1.1.1', { email: 'a@ejemplo.com' })).toBe(true)
+      expect(estaBloqueado(limiter, correo, '1.1.1.1')).toBe(false)
     }
   })
 
   it('bloquea el sexto intento', () => {
-    const { guard } = montar()
+    const { limiter } = montar()
 
     for (let intento = 0; intento < LIMITE; intento += 1) {
-      intentar(guard, '1.1.1.1', { email: 'a@ejemplo.com' })
+      limiter.registra(correo, '1.1.1.1')
     }
 
-    expect(estaBloqueado(guard, '1.1.1.1', { email: 'a@ejemplo.com' })).toBe(true)
+    expect(estaBloqueado(limiter, correo, '1.1.1.1')).toBe(true)
   })
 
   it('bloquea por correo aunque venga de otra IP, que es la fuerza bruta contra una cuenta', () => {
-    const { guard } = montar()
+    const { limiter } = montar()
 
     for (let intento = 0; intento < LIMITE; intento += 1) {
-      intentar(guard, `1.1.1.${intento}`, { email: 'victima@ejemplo.com' })
+      limiter.registra(correo, `1.1.1.${intento}`)
     }
 
-    expect(estaBloqueado(guard, '9.9.9.9', { email: 'victima@ejemplo.com' })).toBe(true)
+    expect(estaBloqueado(limiter, correo, '9.9.9.9')).toBe(true)
   })
 
   it('bloquea por IP aunque cambie el correo en cada intento, que es el barrido de cuentas', () => {
-    const { guard } = montar()
+    const { limiter } = montar()
 
     for (let intento = 0; intento < LIMITE; intento += 1) {
-      intentar(guard, '5.5.5.5', { email: `cuenta${intento}@ejemplo.com` })
+      limiter.registra(`cuenta${intento}@ejemplo.com`, '5.5.5.5')
     }
 
-    expect(estaBloqueado(guard, '5.5.5.5', { email: 'otra@ejemplo.com' })).toBe(true)
+    expect(estaBloqueado(limiter, 'otra@ejemplo.com', '5.5.5.5')).toBe(true)
   })
 
   it('deja pasar a otra cuenta desde otra IP mientras la primera no se bloquea', () => {
-    const { guard } = montar()
+    const { limiter } = montar()
 
     for (let intento = 0; intento < LIMITE; intento += 1) {
-      intentar(guard, '1.1.1.1', { email: 'a@ejemplo.com' })
+      limiter.registra(correo, '1.1.1.1')
     }
 
-    expect(intentar(guard, '2.2.2.2', { email: 'b@ejemplo.com' })).toBe(true)
+    expect(estaBloqueado(limiter, 'b@ejemplo.com', '2.2.2.2')).toBe(false)
   })
 
   it('vuelve a dejar pasar cuando pasa la ventana de tiempo', () => {
-    const { guard, reloj } = montar()
+    const { limiter, reloj } = montar()
 
     for (let intento = 0; intento < LIMITE; intento += 1) {
-      intentar(guard, '1.1.1.1', { email: 'a@ejemplo.com' })
+      limiter.registra(correo, '1.1.1.1')
     }
-    expect(estaBloqueado(guard, '1.1.1.1', { email: 'a@ejemplo.com' })).toBe(true)
+    expect(estaBloqueado(limiter, correo, '1.1.1.1')).toBe(true)
 
     reloj.avanzar(60_001)
 
-    expect(intentar(guard, '1.1.1.1', { email: 'a@ejemplo.com' })).toBe(true)
+    expect(estaBloqueado(limiter, correo, '1.1.1.1')).toBe(false)
   })
 
-  it('no cuenta los intentos correctos, porque sino un usuario legitimo se bloquea a si mismo', () => {
-    const { guard } = montar()
+  it('limpiar tras un acierto deja entrar otra vez, que es el caso de quien entra bien muchas veces', () => {
+    const { limiter } = montar()
+
+    for (let intento = 0; intento < LIMITE; intento += 1) {
+      limiter.registra(correo, '1.1.1.1')
+    }
+    limiter.limpiar(correo, '1.1.1.1')
+
+    expect(estaBloqueado(limiter, correo, '1.1.1.1')).toBe(false)
+  })
+
+  it('limpiar borra también el historial de la IP, no solo el del correo', () => {
+    const { limiter } = montar()
+
+    for (let intento = 0; intento < LIMITE; intento += 1) {
+      limiter.registra(`cuenta${intento}@ejemplo.com`, '5.5.5.5')
+    }
+    limiter.limpiar('cuenta0@ejemplo.com', '5.5.5.5')
+
+    expect(estaBloqueado(limiter, 'otra@ejemplo.com', '5.5.5.5')).toBe(false)
+  })
+
+  it('no cuenta los intentos correctos, porque si no un usuario legítimo se bloquea a sí mismo', () => {
+    const { limiter } = montar()
 
     for (let intento = 0; intento < 20; intento += 1) {
-      guard.marcarExito('a@ejemplo.com', '1.1.1.1')
+      limiter.registra(correo, '1.1.1.1')
+      limiter.limpiar(correo, '1.1.1.1')
     }
 
-    expect(intentar(guard, '1.1.1.1', { email: 'a@ejemplo.com' })).toBe(true)
+    expect(estaBloqueado(limiter, correo, '1.1.1.1')).toBe(false)
   })
 
-  it('un login correcto borra el historial de esa cuenta y esa IP', () => {
-    const { guard } = montar()
+  it('normaliza el correo, para que no se evada el límite cambiando mayúsculas', () => {
+    const { limiter } = montar()
 
     for (let intento = 0; intento < LIMITE; intento += 1) {
-      intentar(guard, '1.1.1.1', { email: 'a@ejemplo.com' })
+      limiter.registra(correo, '1.1.1.1')
     }
-    guard.marcarExito('a@ejemplo.com', '1.1.1.1')
 
-    expect(intentar(guard, '1.1.1.1', { email: 'a@ejemplo.com' })).toBe(true)
+    expect(estaBloqueado(limiter, '  A@Ejemplo.COM ', '1.1.1.1')).toBe(true)
   })
 
-  it('normaliza el correo, para que no se evada el limite cambiando mayusculas', () => {
-    const { guard } = montar()
+  it('cuenta también los intentos sin correo, que son sondeos', () => {
+    const { limiter } = montar()
 
     for (let intento = 0; intento < LIMITE; intento += 1) {
-      intentar(guard, '1.1.1.1', { email: 'a@ejemplo.com' })
+      limiter.registra('', '1.1.1.1')
     }
 
-    expect(estaBloqueado(guard, '1.1.1.1', { email: '  A@Ejemplo.COM ' })).toBe(true)
+    expect(estaBloqueado(limiter, '', '1.1.1.1')).toBe(true)
   })
 
-  it('cuenta tambien los intentos sin correo en el cuerpo, que son sondeos', () => {
-    const { guard } = montar()
+  it('el bloqueo dice cuántos segundos quedan, para que el formulario pueda avisar', () => {
+    const { limiter } = montar()
 
     for (let intento = 0; intento < LIMITE; intento += 1) {
-      intentar(guard, '1.1.1.1', {})
+      limiter.registra(correo, '1.1.1.1')
     }
 
-    expect(estaBloqueado(guard, '1.1.1.1', {})).toBe(true)
+    expect(() => limiter.registra(correo, '1.1.1.1')).toThrow(/60/)
+  })
+
+  it('respeta el límite que venga de la configuración', () => {
+    const { limiter } = montar({ maxAttempts: 2, windowMs: 60_000 })
+
+    limiter.registra(correo, '1.1.1.1')
+    limiter.registra(correo, '1.1.1.1')
+
+    expect(estaBloqueado(limiter, correo, '1.1.1.1')).toBe(true)
   })
 
   it('limpiarContadores devuelve el estado a cero, que es lo que necesita un test', () => {
-    const { guard } = montar()
+    const { limiter } = montar()
 
     for (let intento = 0; intento < LIMITE; intento += 1) {
-      intentar(guard, '1.1.1.1', { email: 'a@ejemplo.com' })
+      limiter.registra(correo, '1.1.1.1')
     }
-    expect(estaBloqueado(guard, '1.1.1.1', { email: 'a@ejemplo.com' })).toBe(true)
+    expect(estaBloqueado(limiter, correo, '1.1.1.1')).toBe(true)
 
-    guard.limpiarContadores()
+    limiter.limpiarContadores()
 
-    expect(intentar(guard, '1.1.1.1', { email: 'a@ejemplo.com' })).toBe(true)
-  })
-
-  it('el bloqueo dice cuantos segundos quedan, para que el formulario pueda avisar', () => {
-    const { guard } = montar()
-
-    for (let intento = 0; intento < LIMITE; intento += 1) {
-      intentar(guard, '1.1.1.1', { email: 'a@ejemplo.com' })
-    }
-
-    expect(() => intentar(guard, '1.1.1.1', { email: 'a@ejemplo.com' })).toThrow(/60/)
+    expect(estaBloqueado(limiter, correo, '1.1.1.1')).toBe(false)
   })
 })

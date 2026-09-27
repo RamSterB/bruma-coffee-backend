@@ -93,4 +93,26 @@ describe('authConfig', () => {
       expect(leido.login.maxAttempts).toBe(5)
     })
   })
+
+  describe('coste de bcrypt', () => {
+    afterEach(() => {
+      delete process.env.BCRYPT_ROUNDS
+    })
+
+    it('es un numero, no el texto del .env', () => {
+      process.env.BCRYPT_ROUNDS = '12'
+
+      const leido = authConfig(config({ JWT_SECRET: 'x' }))
+
+      expect(typeof leido.bcryptRounds).toBe('number')
+      expect(leido.bcryptRounds).toBe(12)
+    })
+
+    it('usa diez rondas si la variable no esta o no es un numero', () => {
+      expect(authConfig(config({ JWT_SECRET: 'x' })).bcryptRounds).toBe(10)
+
+      process.env.BCRYPT_ROUNDS = 'mucho'
+      expect(authConfig(config({ JWT_SECRET: 'x' })).bcryptRounds).toBe(10)
+    })
+  })
 })
