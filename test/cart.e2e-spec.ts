@@ -451,4 +451,98 @@ describe('/cart e2e', () => {
       expect((await carrito(tokenA)).totalItems).toBe(0)
     })
   })
+
+  describe('GET /api/cart/summary', () => {
+    const resumen = async (token: string) =>
+      (
+        await request(server)
+          .get('/api/cart/summary')
+          .set('Authorization', `Bearer ${token}`)
+          .expect(200)
+      ).body as Record<string, unknown>
+
+    it('devuelve un resumen a cero para quien no tiene carrito', async () => {
+      const token = await crearSesion('persona@ejemplo.com')
+
+      expect(await resumen(token)).toEqual({
+        lines: [],
+        subtotal: 0,
+        tax: 0,
+        shipping: 0,
+        total: 0,
+        isFreeShipping: false,
+      })
+    })
+
+    it('devuelve el desglose completo con los precios del servidor', async () => {
+      const token = await crearSesion('persona@ejemplo.com')
+      await request(server)
+        .post('/api/cart/items')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ variantId, quantity: 2 })
+        .expect(201)
+
+      const cuerpo = await resumen(token)
+
+      expect(cuerpo.subtotal).toBe(84000)
+      expect(cuerpo.tax).toBe(15960)
+      expect(cuerpo.shipping).toBe(10000)
+      expect(cuerpo.total).toBe(109960)
+    })
+
+    it('el total es exactamente la suma de lo que muestra el desglose', async () => {
+      const token = await crearSesion('persona@ejemplo.com')
+      await request(server)
+        .post('/api/cart/items')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ variantId, quantity: 1 })
+        .expect(201)
+
+      const cuerpo = await resumen(token)
+
+      expect(cuerpo.total).toBe(
+        (cuerpo.subtotal as number) + (cuerpo.tax as number) + (cuerpo.shipping as number),
+      )
+    })
+
+    it('marca el envio gratis cuando el subtotal alcanza el umbral', async () => {
+      const token = await crearSesion('persona@ejemplo.com')
+      await request(server)
+        .post('/api/cart/items')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ variantId, quantity: 4 })
+        .expect(201)
+
+      const cuerpo = await resumen(token)
+
+      expect(cuerpo.isFreeShipping).toBe(true)
+      expect(cuerpo.shipping).toBe(0)
+      expect(cuerpo.total).toBe(199920)
+    })
+
+    it('lista las lineas con su nombre de cafe y su importe', async () => {
+      const token = await crearSesion('persona@ejemplo.com')
+      await request(server)
+        .post('/api/cart/items')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ variantId, quantity: 2 })
+        .expect(201)
+
+      const cuerpo = await resumen(token)
+
+      expect(cuerpo.lines).toEqual([
+        {
+          variantId,
+          coffeeName: 'Café del Carrito',
+          unitPrice: 42000,
+          quantity: 2,
+          subtotal: 84000,
+        },
+      ])
+    })
+
+    it('exige token, porque el resumen es el carrito de alguien', async () => {
+      await request(server).get('/api/cart/summary').expect(401)
+    })
+  })
 })
