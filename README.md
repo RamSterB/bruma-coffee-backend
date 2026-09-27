@@ -69,9 +69,22 @@ las variables (`DB_HOST=postgres16`, etc.) vía `containerEnv`.
 | `DB_USER` | Usuario de la BD | `postgres` |
 | `DB_PASSWORD` | Password de la BD | `postgres` |
 | `DB_NAME` | Nombre de la BD | `bruma_coffee` |
+| `SEED_ADMIN_EMAIL` | Correo de la cuenta admin que crea la migración de arranque | `admin@bruma-coffee.test` |
+| `SEED_ADMIN_PASSWORD` | Contraseña de esa cuenta admin | `BrumaCafe2026!` |
+| `SEED_CUSTOMER_EMAIL` | Correo del cliente de ejemplo | `cliente@bruma-coffee.test` |
+| `SEED_CUSTOMER_PASSWORD` | Contraseña del cliente de ejemplo | `BrumaCafe2026!` |
 
 No hay variable `DB_SYNCHRONIZE`: el esquema se gestiona **solo** con migraciones y
 `synchronize` está en `false` fijo en el código.
+
+### La contraseña del admin no está en el código
+
+La migración de arranque crea un admin y un cliente, pero su contraseña sale de
+`SEED_ADMIN_PASSWORD` y `SEED_CUSTOMER_PASSWORD`. Hay valores por defecto para desarrollo y
+**en producción la migración aborta** si se detectan: una contraseña de admin escrita en el
+código queda en el historial de git para siempre, y ahí no se puede cambiar. Las dos cuentas
+nacen con `customers` propio y correo verificado, para que se pueda entrar sin tener que pasar
+todavía por la verificación de correo.
 
 ## Comandos
 

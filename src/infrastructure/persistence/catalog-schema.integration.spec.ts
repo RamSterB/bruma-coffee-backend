@@ -10,7 +10,7 @@ import { CoffeeVariantTypeOrmEntity } from './coffee-variant.typeorm.entity'
 
 /**
  * Las restricciones del esquema viven en la migración, no en el código, así que
- * solo se pueden comprobar letting. Si una
+ * solo se pueden comprobar ejecutándolas. Si una
  * migración se regenera o se edita a mano, esto es lo que se entera.
  */
 describe('restricciones del esquema del catálogo', () => {
