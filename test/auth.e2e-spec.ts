@@ -18,7 +18,15 @@ describe('/auth e2e', () => {
   let dataSource: DataSource
   let server: ReturnType<INestApplication['getHttpServer']>
 
-  const cuenta = { email: 'persona@ejemplo.com', password: 'BrumaCafe2026!', fullName: 'Persona Registrada' }
+  const cookieValor = (cookies: string[], nombre: string): string | undefined =>
+  cookies
+    .find((cookie) => cookie.startsWith(`${nombre}=`))
+    ?.split(';')[0]
+    ?.split('=')
+    .slice(1)
+    .join('=')
+
+const cuenta = { email: 'persona@ejemplo.com', password: 'BrumaCafe2026!', fullName: 'Persona Registrada' }
 
   beforeAll(async () => {
     dataSource = await resetTestDatabase()
@@ -48,6 +56,24 @@ describe('/auth e2e', () => {
     // bloqueo deja llena la cuota y falla el siguiente test sin motivo apparent.
     app.get(LoginRateLimiter).limpiarContadores()
   })
+
+  /**
+   * El navegador solo manda las cookies cuyo Path sea prefijo de la ruta que se
+   * pide. Los tests de abajomontean la cabecera `Cookie` a mano, y al hacerlo se
+   * saltan esa regla: por eso los errores de path pasaron inadvertidos y la sesion
+   * se cerraba sola al recargar. Este helper reconstruye el comportamiento real.
+   */
+  const navegadorManda = (setCookie: string[] | undefined, ruta: string): string[] => {
+    const aplicables = (setCookie ?? []).filter((cookie) => {
+      const camino = cookie.split(';')[0]?.split('=')[0]?.trim()
+      const atributos = cookie.split(';').map((parte) => parte.trim())
+      const path = atributos.find((parte) => parte.startsWith('Path='))?.slice(5) ?? '/'
+
+      return camino !== undefined && camino !== '' && ruta.startsWith(path)
+    })
+
+    return aplicables.map((cookie) => cookie.split(';')[0] as string)
+  }
 
   const registrar = async () => {
     const respuesta = await request(server)
@@ -137,7 +163,7 @@ describe('/auth e2e', () => {
       const csrf = cookies.find((c) => c.startsWith(CSRF_COOKIE))
 
       expect(refresh).toMatch(/HttpOnly/i)
-      expect(refresh).toMatch(/Path=\/auth/i)
+      expect(refresh).toMatch(/Path=\/api\/auth/i)
       expect(refresh).toMatch(/SameSite=Lax/i)
       expect(csrf).not.toMatch(/HttpOnly/i)
     })
@@ -231,6 +257,35 @@ describe('/auth e2e', () => {
   })
 
   describe('POST /api/auth/refresh', () => {
+    it('funciona con las reglas de cookie del navegador, sin montar la cabecera a mano', async () => {
+      // Esta es la prueba que faltaba. Reproduce lo que pasa al recargar: el
+      // login devuelve las cookies y el navegador decide si las envia a
+      // /api/auth/refresh segun su Path.
+      const login = await entrar()
+      const conPath = login.headers['set-cookie'] as unknown as string[]
+
+      await request(server)
+        .post('/api/auth/refresh')
+        .set('Cookie', navegadorManda(conPath, '/api/auth/refresh'))
+        .set('x-csrf-token', cookieValor(conPath, CSRF_COOKIE) as string)
+        .expect(200)
+    })
+
+    it('las cookies de sesion sedirname a /api/auth, donde esta el refresh', async () => {
+      const login = await entrar()
+      const conPath = login.headers['set-cookie'] as unknown as string[]
+
+      expect(navegadorManda(conPath, '/api/auth/refresh')).toHaveLength(2)
+    })
+
+    it('la cookie de CSRF se ve desde la pagina, que es lo que permite el doble envio', async () => {
+      const login = await entrar()
+      const conPath = login.headers['set-cookie'] as unknown as string[]
+
+      // La pagina de la tienda esta en /, no en /api/auth.
+      expect(navegadorManda(conPath, '/')).toContain(`${CSRF_COOKIE}=${cookieValor(conPath, CSRF_COOKIE)}`)
+    })
+
     it('rota la cookie y devuelve un access token nuevo', async () => {
       const login = await entrar()
       const antes = (login.headers['set-cookie'] as unknown as string[]).find((c) =>
