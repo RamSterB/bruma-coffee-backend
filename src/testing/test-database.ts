@@ -50,6 +50,21 @@ const credentials = {
   password: readEnv('DB_PASSWORD', 'postgres'),
 }
 
+/**
+ * La conexión con la que hablan los tests, ya resuelta. Se exporta para que un
+ * test que arranque la aplicación entera apunte al mismo sitio: al importar
+ * AppModule, su ConfigModule lee el .env de desarrollo y deja DB_HOST apuntando
+ * al contenedor, que desde el host no resuelve, y el arranque muere con un
+ * ENOTFOUND que no tiene nada que ver con lo que se está probando.
+ */
+export const TEST_CONNECTION_ENV: Record<string, string> = {
+  DB_HOST: credentials.host,
+  DB_PORT: String(credentials.port),
+  DB_USER: credentials.username,
+  DB_PASSWORD: credentials.password,
+  DB_NAME: TEST_DATABASE,
+}
+
 const assertTestDatabase = (database: string): void => {
   if (!database.endsWith(TEST_DATABASE_SUFFIX)) {
     throw new Error(

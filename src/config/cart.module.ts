@@ -9,11 +9,9 @@ import { MergeLocalCartUseCase } from '../application/use-cases/merge-local-cart
 import { RemoveCartItemUseCase } from '../application/use-cases/remove-cart-item.use-case'
 import { UpdateCartItemQuantityUseCase } from '../application/use-cases/update-cart-item-quantity.use-case'
 import { CartRepositoryPort } from '../domain/ports/cart.repository'
-import { GeographyRepositoryPort } from '../domain/ports/geography.repository'
+import { GeographyModule } from './geography.module'
 import { PRICING_CONFIG, pricingConfig } from './pricing.config'
 import { PersistenceModule } from '../infrastructure/persistence/persistence.module'
-import { DepartmentTypeOrmEntity } from '../infrastructure/persistence/department.typeorm.entity'
-import { TypeOrmGeographyRepository } from '../infrastructure/persistence/geography.typeorm.repository'
 import { CartTypeOrmEntity } from '../infrastructure/persistence/cart.typeorm.entity'
 import { CartItemTypeOrmEntity } from '../infrastructure/persistence/cart-item.typeorm.entity'
 import { TypeOrmCartRepository } from '../infrastructure/persistence/cart.typeorm.repository'
@@ -26,20 +24,19 @@ import { CartController } from '../interfaces/http/cart/cart.controller'
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CartTypeOrmEntity, CartItemTypeOrmEntity, DepartmentTypeOrmEntity]),
+    TypeOrmModule.forFeature([CartTypeOrmEntity, CartItemTypeOrmEntity]),
     // PersistenceModule es quien publica CoffeeRepositoryPort, y el carrito lo
     // necesita para saber si una variante se puede comprar antes de guardarla.
     PersistenceModule,
+    // El módulo de geografía es el dueño de su port. El carrito lo importa para
+    // validar la ciudad, no para publicar la lista.
+    GeographyModule,
   ],
   controllers: [CartController],
   providers: [
     {
       provide: CartRepositoryPort,
       useClass: TypeOrmCartRepository,
-    },
-    {
-      provide: GeographyRepositoryPort,
-      useClass: TypeOrmGeographyRepository,
     },
     {
       provide: PRICING_CONFIG,

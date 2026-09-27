@@ -43,6 +43,18 @@ export class FakeGeographyRepository implements GeographyRepositoryPort {
     return this.departamentos.map((d) => ({ id: d.id, name: d.name }))
   }
 
+  async findDepartmentById(id: string): Promise<{ id: string; name: string } | null> {
+    const encontrado = this.departamentos.find((d) => d.id === id)
+
+    return encontrado === undefined ? null : { id: encontrado.id, name: encontrado.name }
+  }
+
+  async listCitiesByDepartment(departmentId: string): Promise<{ id: string; name: string }[]> {
+    const encontradas = this.departamentos.find((d) => d.id === departmentId)?.cities ?? []
+
+    return encontradas.map((city) => ({ id: city.id, name: city.name }))
+  }
+
   async findDepartmentByName(name: string): Promise<{ id: string; name: string } | null> {
     const buscado = normalizar(name)
     const encontrado = this.departamentos.find((d) => normalizar(d.name) === buscado)

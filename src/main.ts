@@ -16,6 +16,7 @@ async function bootstrap(): Promise<void> {
     .addTag('coffee')
     .addTag('auth')
     .addTag('cart')
+    .addTag('geography')
     .build()
 
   const documentFactory = () => SwaggerModule.createDocument(app, swaggerConfig)

@@ -108,6 +108,8 @@ persona inicia sesión, el carrito del servidor entra en juego:
 | `GET /api/cart` | Las líneas con el precio y el stock del catálogo de ahora |
 | `GET /api/cart/summary` | El desglose antes de pagar: subtotal, envío, IVA y total |
 | `POST /api/cart/shipping-quote` | Confirma el desglose con los datos de entrega |
+| `GET /api/geography/departments` | Departamentos donde se entrega (público) |
+| `GET /api/geography/departments/:id/cities` | Ciudades de un departamento (público) |
 | `POST /api/cart/items` | Agrega una variante, sumando a la que ya había |
 | `PATCH /api/cart/items/:variantId` | Deja la línea en una cantidad exacta |
 | `DELETE /api/cart/items/:variantId` | Quita la línea |
