@@ -3,10 +3,12 @@ import { TypeOrmModule } from '@nestjs/typeorm'
 import { AddItemToCartUseCase } from '../application/use-cases/add-item-to-cart.use-case'
 import { ClearCartUseCase } from '../application/use-cases/clear-cart.use-case'
 import { GetCartUseCase } from '../application/use-cases/get-cart.use-case'
+import { GetOrderSummaryUseCase } from '../application/use-cases/get-order-summary.use-case'
 import { MergeLocalCartUseCase } from '../application/use-cases/merge-local-cart.use-case'
 import { RemoveCartItemUseCase } from '../application/use-cases/remove-cart-item.use-case'
 import { UpdateCartItemQuantityUseCase } from '../application/use-cases/update-cart-item-quantity.use-case'
 import { CartRepositoryPort } from '../domain/ports/cart.repository'
+import { PRICING_CONFIG, pricingConfig } from './pricing.config'
 import { PersistenceModule } from '../infrastructure/persistence/persistence.module'
 import { CartTypeOrmEntity } from '../infrastructure/persistence/cart.typeorm.entity'
 import { CartItemTypeOrmEntity } from '../infrastructure/persistence/cart-item.typeorm.entity'
@@ -31,7 +33,12 @@ import { CartController } from '../interfaces/http/cart/cart.controller'
       provide: CartRepositoryPort,
       useClass: TypeOrmCartRepository,
     },
+    {
+      provide: PRICING_CONFIG,
+      useFactory: () => pricingConfig(),
+    },
     GetCartUseCase,
+    GetOrderSummaryUseCase,
     AddItemToCartUseCase,
     UpdateCartItemQuantityUseCase,
     RemoveCartItemUseCase,
