@@ -27,10 +27,12 @@ import type { Request } from 'express'
 import { AddItemToCartUseCase } from '../../../application/use-cases/add-item-to-cart.use-case'
 import { ClearCartUseCase } from '../../../application/use-cases/clear-cart.use-case'
 import { GetCartUseCase } from '../../../application/use-cases/get-cart.use-case'
+import { GetOrderSummaryUseCase } from '../../../application/use-cases/get-order-summary.use-case'
 import { MergeLocalCartUseCase } from '../../../application/use-cases/merge-local-cart.use-case'
 import { RemoveCartItemUseCase } from '../../../application/use-cases/remove-cart-item.use-case'
 import { UpdateCartItemQuantityUseCase } from '../../../application/use-cases/update-cart-item-quantity.use-case'
 import type { Cart } from '../../../domain/entities/cart.entity'
+import type { OrderSummary } from '../../../domain/entities/order-summary.entity'
 import type { AppError } from '../../../domain/errors/app-error'
 import type { Result } from '../../../domain/result'
 import { JwtAuthGuard, type SessionInfo } from '../auth/auth.guards'
@@ -39,6 +41,8 @@ import {
   CartDto,
   CartItemDto,
   MergeLocalCartDto,
+  OrderSummaryDto,
+  OrderSummaryLineDto,
   UpdateCartItemQuantityDto,
 } from './dto/cart.dto'
 
@@ -65,6 +69,7 @@ export class CartController {
     private readonly removeCartItemUseCase: RemoveCartItemUseCase,
     private readonly clearCartUseCase: ClearCartUseCase,
     private readonly mergeLocalCartUseCase: MergeLocalCartUseCase,
+    private readonly getOrderSummaryUseCase: GetOrderSummaryUseCase,
   ) {}
 
   @Get()
@@ -76,6 +81,19 @@ export class CartController {
   @ApiOkResponse({ type: CartDto })
   async getCart(@Req() req: PeticionAutenticada): Promise<CartDto> {
     return CartController.aDto(await this.getCartUseCase.execute(req.auth.userId))
+  }
+
+  @Get('summary')
+  @ApiOperation({
+    summary: 'Ver el resumen de la orden antes de pagar',
+    description:
+      'Devuelve el detalle economico con el desglose completo: subtotal, envio, IVA del 19 % y total. Todos los importes los calcula el backend con la configuracion del entorno; el navegador solo los muestra, y por eso no puede negociar su propio precio.',
+  })
+  @ApiOkResponse({ type: OrderSummaryDto })
+  async getSummary(@Req() req: PeticionAutenticada): Promise<OrderSummaryDto> {
+    const resumen = await this.getOrderSummaryUseCase.execute(req.auth.userId)
+
+    return CartController.aResumenDto(resumen)
   }
 
   @Post('items')
@@ -179,6 +197,23 @@ export class CartController {
     }
 
     return resultado.value
+  }
+
+  private static aResumenDto(resumen: OrderSummary): OrderSummaryDto {
+    return {
+      lines: resumen.lines.map((linea): OrderSummaryLineDto => ({
+        variantId: linea.variantId,
+        coffeeName: linea.coffeeName,
+        unitPrice: linea.unitPrice,
+        quantity: linea.quantity,
+        subtotal: linea.subtotal,
+      })),
+      subtotal: resumen.subtotal,
+      tax: resumen.tax,
+      shipping: resumen.shipping,
+      total: resumen.total,
+      isFreeShipping: resumen.isFreeShipping,
+    }
   }
 
   private static aDto(cart: Cart): CartDto {

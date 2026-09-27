@@ -78,6 +78,9 @@ las variables (`DB_HOST=postgres16`, etc.) vía `containerEnv`.
 | `REFRESH_TOKEN_TTL_SECONDS` | Vida del refresh token y de su cookie, en segundos | `604800` |
 | `LOGIN_MAX_ATTEMPTS` | Intentos de login por ventana, contados por correo y por IP | `5` |
 | `LOGIN_WINDOW_MS` | Duración de esa ventana, en milisegundos | `60000` |
+| `TAX_RATE` | IVA como fracción: `0.19` es el 19 % | `0.19` |
+| `SHIPPING_FLAT_RATE` | Tarifa fija de envío, en pesos | `10000` |
+| `FREE_SHIPPING_THRESHOLD` | Subtotal desde el que el envío va gratis | `150000` |
 | `BCRYPT_ROUNDS` | Coste de bcrypt al cifrar contraseñas | `10` |
 
 No hay variable `DB_SYNCHRONIZE`: el esquema se gestiona **solo** con migraciones y
@@ -103,6 +106,7 @@ persona inicia sesión, el carrito del servidor entra en juego:
 | Ruta | Qué hace |
 |---|---|
 | `GET /api/cart` | Las líneas con el precio y el stock del catálogo de ahora |
+| `GET /api/cart/summary` | El desglose antes de pagar: subtotal, envío, IVA y total |
 | `POST /api/cart/items` | Agrega una variante, sumando a la que ya había |
 | `PATCH /api/cart/items/:variantId` | Deja la línea en una cantidad exacta |
 | `DELETE /api/cart/items/:variantId` | Quita la línea |
@@ -127,6 +131,25 @@ faltaban cosas sin que nadie le dijera por qué.
 
 La cantidad nunca supera el stock: se guarda recortada. El 99 del DTO es un tope
 técnico para que nadie mande un número absurdo, no una regla de compra.
+
+### El desglose de la orden
+
+`GET /api/cart/summary` devuelve el detalle económico antes de cobrar, con cuatro
+importes y ninguno más: **subtotal**, **envío**, **IVA 19 %** y **total**. El IVA
+se calcula sobre el subtotal de los productos y los precios del catálogo no lo
+incluyen, así que se suma encima. El envío va aparte y no entra en la base del
+IVA.
+
+Los tres números vienen del entorno (`TAX_RATE`, `SHIPPING_FLAT_RATE`,
+`FREE_SHIPPING_THRESHOLD`) y no del código, porque los importes de una orden
+cambian con una decisión del negocio y tienen que poder cambiar sin desplegar.
+
+Cuando el subtotal alcanza el umbral la respuesta trae `isFreeShipping: true` y
+`shipping: 0`, para que el modal pueda decir "Envío gratis" en vez de
+`$ 0`.
+
+**Todos los importes se calculan en el backend.** El navegador solo los muestra,
+que es lo que impide que alguien negocie su propio precio desde la consola.
 
 ### La contraseña del admin no está en el código
 

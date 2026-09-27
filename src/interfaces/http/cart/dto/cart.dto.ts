@@ -117,3 +117,46 @@ export class CartDto {
   @ApiProperty({ example: 1, description: 'Numero de lineas que si se pueden comprar' })
   purchasableItems: number
 }
+
+export class OrderSummaryLineDto {
+  @ApiProperty({ format: 'uuid' })
+  variantId: string
+
+  @ApiProperty({ example: 'Cafe Nariño' })
+  coffeeName: string
+
+  @ApiProperty({ example: 42000, description: 'Precio unitario del catalogo' })
+  unitPrice: number
+
+  @ApiProperty({ example: 2 })
+  quantity: number
+
+  @ApiProperty({ example: 84000, description: 'Precio unitario por cantidad' })
+  subtotal: number
+}
+
+export class OrderSummaryDto {
+  @ApiProperty({ type: [OrderSummaryLineDto] })
+  lines: OrderSummaryLineDto[]
+
+  @ApiProperty({ example: 84000, description: 'Suma de las lineas, sin impuestos ni envio' })
+  subtotal: number
+
+  @ApiProperty({ example: 15960, description: 'IVA del 19 % sobre el subtotal de los productos' })
+  tax: number
+
+  @ApiProperty({
+    example: 10000,
+    description: 'Tarifa fija de envio, o cero si el subtotal alcanza el umbral',
+  })
+  shipping: number
+
+  @ApiProperty({ example: 109960, description: 'Subtotal mas IVA mas envio' })
+  total: number
+
+  @ApiProperty({
+    example: false,
+    description: 'Si el envio quedo gratis por alcanzar el umbral, para poder decirlo en el modal',
+  })
+  isFreeShipping: boolean
+}
