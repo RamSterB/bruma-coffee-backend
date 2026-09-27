@@ -81,19 +81,12 @@ export class SeedAccounts1759000001000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    // Los users primero: customers.customer_id usa ON DELETE SET NULL, asi que
-    // borrar solo el customer dejaria una cuenta viva sin historial, que es peor
-    // que no haber sembrado nada.
-    const rows = await queryRunner.query(
-      "SELECT id, customer_id FROM users WHERE email LIKE '%@bruma-coffee.test'",
+    const { rows } = await queryRunner.query(
+      "SELECT id FROM users WHERE email LIKE '%@bruma-coffee.test'",
     )
 
     for (const row of rows) {
-      await queryRunner.query('DELETE FROM users WHERE id = $1', [row.id])
-
-      if (row.customer_id !== null) {
-        await queryRunner.query('DELETE FROM customers WHERE id = $1', [row.customer_id])
-      }
+      await queryRunner.query('DELETE FROM customers WHERE id = $1', [row.id])
     }
   }
 }

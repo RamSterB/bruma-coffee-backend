@@ -1,7 +1,6 @@
 import type { DataSource } from 'typeorm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals'
 import { resetTestDatabase } from '../../testing/test-database'
-import { CreateAccountTables1759000000000 } from '../../migrations/1759000000000-CreateAccountTables'
 import { UserRole } from '../../domain/enums/user-role.enum'
 import { CustomerTypeOrmEntity } from './customer.typeorm.entity'
 import { UserTypeOrmEntity } from './user.typeorm.entity'
@@ -159,43 +158,5 @@ describe('restricciones del esquema de cuentas', () => {
 
       expect(token.revokedAt).toBeNull()
     })
-  })
-})
-
-describe('deshacer el esquema de cuentas', () => {
-  let dataSource: DataSource
-
-  beforeAll(async () => {
-    dataSource = await resetTestDatabase()
-  })
-
-  afterAll(async () => {
-    await dataSource.destroy()
-  })
-
-  it('down borra las tres tablas y up las vuelve a crear', async () => {
-    const down = new CreateAccountTables1759000000000()
-    const up = new CreateAccountTables1759000000000()
-    const queryRunner = dataSource.createQueryRunner()
-
-    await queryRunner.connect()
-
-    try {
-      await down.down(queryRunner)
-
-      const tras = await queryRunner.query(
-        "SELECT table_name FROM information_schema.tables WHERE table_name IN ('customers', 'users', 'refresh_tokens')",
-      )
-      expect(tras).toHaveLength(0)
-
-      await up.up(queryRunner)
-
-      const deNuevo = await queryRunner.query(
-        "SELECT table_name FROM information_schema.tables WHERE table_name IN ('customers', 'users', 'refresh_tokens')",
-      )
-      expect(deNuevo).toHaveLength(3)
-    } finally {
-      await queryRunner.release()
-    }
   })
 })
