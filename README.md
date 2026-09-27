@@ -175,6 +175,12 @@ El nombre que se guarda es **el del catálogo y no el que escribió la persona**
 cada compra guardara "Bogota", la orden tendría un dato que no existe en ninguna
 otra parte del sistema.
 
+**El teléfono tiene que ser un celular de diez dígitos.** Decidido el 2026-09-26:
+un pedido se entrega a un teléfono que la persona lleva encima, y un fijo o está
+mal escrito o es el número de una oficina que ya no atiende. Admitir fijos hacía
+que el repartidor tuviera que llamar a un sitio donde no va nadie. Se aceptan
+espacios, guiones y el prefijo `+57`, porque así es como lo escribe la gente.
+
 **Ningún dato de pago entra aquí.** Ni número de tarjeta ni clave: la tarjeta se
 tokeniza en el cliente y la pasarela guarda el resto.
 

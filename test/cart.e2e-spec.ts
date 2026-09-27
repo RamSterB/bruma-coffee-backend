@@ -617,6 +617,28 @@ describe('/cart e2e', () => {
         .expect(400)
     })
 
+    it('rechaza con 400 un fijo de siete dígitos, porque un pedido no se entrega a un fijo', async () => {
+      const token = await crearSesion('persona@ejemplo.com')
+
+      const respuesta = await request(server)
+        .post('/api/cart/shipping-quote')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ ...envio, phone: '1234567' })
+        .expect(400)
+
+      expect(JSON.stringify(respuesta.body)).toContain('10')
+    })
+
+    it('acepta un celular escrito con espacios, que es como lo escribe la gente', async () => {
+      const token = await crearSesion('persona@ejemplo.com')
+
+      await request(server)
+        .post('/api/cart/shipping-quote')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ ...envio, phone: '300 123 4567' })
+        .expect(200)
+    })
+
     it('rechaza con 400 un teléfono inválido, y no con un error de servidor', async () => {
       const token = await crearSesion('persona@ejemplo.com')
 

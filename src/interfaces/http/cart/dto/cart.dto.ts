@@ -186,8 +186,15 @@ export class ShippingDataDto {
   @MaxLength(20)
   documentNumber: string
 
-  @ApiProperty({ example: '3001234567' })
+  @ApiProperty({
+    example: '3001234567',
+    description:
+      'Celular de 10 digitos. No se aceptan fijos: un pedido se entrega a un telefono que la persona lleva encima.',
+  })
   @IsString()
+  // Aqui solo se miran los caracteres. El largo lo comprueba el dominio, que
+  // quita espacios, guiones y el prefijo de pais antes de contar: medir aqui la
+  // cadena cruda rechazaria "300 123 4567", que es como lo escribe la gente.
   @Matches(/^[\d+\s()-]+$/, { message: 'El telefono solo lleva numeros' })
   @MaxLength(20)
   phone: string

@@ -42,8 +42,17 @@ describe('validatePhone', () => {
     expect(validatePhone('3001234567')).toBe(true)
   })
 
-  it('acepta un fijo de Bogotá, de siete dígitos', () => {
-    expect(validatePhone('1234567')).toBe(true)
+  it('rechaza un fijo de siete dígitos, porque un fijo no recibe un pedido', () => {
+    expect(validatePhone('1234567')).toBe(false)
+  })
+
+  it('rechaza un número de once dígitos, que no es un celular colombiano', () => {
+    expect(validatePhone('30012345678')).toBe(false)
+  })
+
+  it('acepta un celular con espacios o guiones, que es como lo escribe la gente', () => {
+    expect(validatePhone('300 123 4567')).toBe(true)
+    expect(validatePhone('300-123-4567')).toBe(true)
   })
 
   it('acepta el prefijo de país, que aparece en los formularios largos', () => {

@@ -46,11 +46,18 @@ export const validateDocument = (valor: string): boolean => {
   return digitos !== null && digitos.length >= 6 && digitos.length <= 10
 }
 
-/** Celular de diez dígitos, fijo de siete, y el prefijo de país opcional. */
+/**
+ * Celular de **exactamente** diez dígitos, y con prefijo de país opcional.
+ *
+ * No se aceptan fijos: un pedido se entrega a un teléfono que la persona lleva
+ * encima, y un fijo de siete dígitos o está mal escrito o es el número de una
+ * oficina que ya no atiende. Admitirlos hacía que el repartidor tuviera que
+ * llamar a un sitio donde no va nadie.
+ */
 export const validatePhone = (valor: string): boolean => {
   const digitos = soloDigitos(valor)?.replace(/^57/, '')
 
-  return digitos !== undefined && (digitos.length === 10 || digitos.length === 7)
+  return digitos !== undefined && digitos.length === PHONE_DIGITS
 }
 
 const obligatorio = (valor: string, nombre: string): string => {
@@ -62,6 +69,9 @@ const obligatorio = (valor: string, nombre: string): string => {
 
   return limpio
 }
+
+/** Un celular colombiano son diez dígitos. Ni uno más ni uno menos. */
+export const PHONE_DIGITS = 10
 
 export class ShippingData {
   private constructor(
@@ -86,7 +96,7 @@ export class ShippingData {
     }
 
     if (!validatePhone(input.phone)) {
-      throw new DomainError('El número de teléfono no tiene un formato válido')
+      throw new DomainError('El teléfono debe ser un celular de 10 dígitos')
     }
 
     return new ShippingData(fullName, documentNumber, phone, address, city, department)
