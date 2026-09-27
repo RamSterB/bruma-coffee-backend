@@ -1,6 +1,12 @@
 import { REFRESH_COOKIE, CSRF_COOKIE } from './auth-cookie'
 import type { CookieOptions } from 'express'
-import { cookieOptions, setAuthCookies, clearAuthCookies, readRefreshCookie } from './auth-cookie'
+import {
+  cookieOptions,
+  csrfCookieOptions,
+  setAuthCookies,
+  clearAuthCookies,
+  readRefreshCookie,
+} from './auth-cookie'
 
 describe('constantes de las cookies de sesion', () => {
   it('la cookie del refresh se llama refresh_token', () => {
@@ -11,8 +17,18 @@ describe('constantes de las cookies de sesion', () => {
     expect(CSRF_COOKIE).toBe('csrf_token')
   })
 
-  it('la cookie del refresh va en /auth, que es lo unico que la usa', () => {
-    expect(cookieOptions(false).path).toBe('/auth')
+  it('la cookie del refresh va a las rutas de autenticacion, con el prefijo de la API', () => {
+    // La API vive bajo /api, así que las rutas reales son /api/auth/*. Con el
+    // path en /auth el navegador no enviaba la cookie a /api/auth/refresh, y la
+    // sesión se cerraba sola al recargar.
+    expect(cookieOptions(false).path).toBe('/api/auth')
+  })
+
+  it('la cookie del CSRF se puede leer desde la pagina, o no hay doble envio posible', () => {
+    // El doble envío necesita que JavaScript lea el valor. El navegador solo
+    // expone a document.cookie las cookies cuyo path coincide con el de la
+    // página, y la página es /, no /api/auth.
+    expect(csrfCookieOptions(false).path).toBe('/')
   })
 })
 
