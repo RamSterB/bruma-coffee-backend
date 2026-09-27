@@ -1,6 +1,7 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common'
 import { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.interface'
 import helmet, { HelmetOptions } from 'helmet'
+import cookieParser from 'cookie-parser'
 
 const API_PREFIX = 'api'
 const HSTS_MAX_AGE_SECONDS = 15_552_000
@@ -13,7 +14,9 @@ export const buildCorsOptions = ({ allowedOrigins }: AppSecurityOptions): CorsOp
   origin: [...allowedOrigins],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  // x-csrf-token es obligatorio: sin permiso para esa cabecera, el navegador
+  // bloquea refresh y logout antes de que lleguen al servidor.
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-csrf-token'],
   maxAge: 600,
 })
 
@@ -42,6 +45,8 @@ export const buildHelmetOptions = (): HelmetOptions => ({
 
 export const configureApp = (app: INestApplication, options: AppSecurityOptions): void => {
   app.setGlobalPrefix(API_PREFIX)
+  // Sin esto req.cookies no existe y el refresh no llega a verse nunca.
+  app.use(cookieParser())
   app.use(helmet(buildHelmetOptions()))
   app.enableCors(buildCorsOptions(options))
   app.useGlobalPipes(

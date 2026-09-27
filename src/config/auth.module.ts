@@ -22,12 +22,17 @@ import { CustomerTypeOrmRepository } from '../infrastructure/persistence/custome
 import { RefreshTokenTypeOrmRepository } from '../infrastructure/persistence/refresh-token.typeorm.repository'
 import { UserTypeOrmRepository } from '../infrastructure/persistence/user.typeorm.repository'
 import { authConfig } from './auth.config'
+import { AuthController } from '../interfaces/http/auth/auth.controller'
+import { AdminGuard, CustomerGuard, JwtAuthGuard } from '../interfaces/http/auth/auth.guards'
+import { CsrfGuard } from '../interfaces/http/auth/csrf.guard'
+import { LoginRateLimitGuard } from '../interfaces/http/auth/login-rate-limit.guard'
 
 @Global()
 @Module({
   imports: [
     TypeOrmModule.forFeature([CustomerTypeOrmEntity, UserTypeOrmEntity, RefreshTokenTypeOrmEntity]),
   ],
+  controllers: [AuthController],
   providers: [
     {
       provide: UserRepositoryPort,
@@ -65,6 +70,11 @@ import { authConfig } from './auth.config'
     RefreshSessionUseCase,
     LogoutUseCase,
     GetProfileUseCase,
+    JwtAuthGuard,
+    CustomerGuard,
+    AdminGuard,
+    CsrfGuard,
+    LoginRateLimitGuard,
   ],
   exports: [
     UserRepositoryPort,
@@ -75,6 +85,11 @@ import { authConfig } from './auth.config'
     RefreshSessionUseCase,
     LogoutUseCase,
     GetProfileUseCase,
+    JwtAuthGuard,
+    CustomerGuard,
+    AdminGuard,
+    CsrfGuard,
+    LoginRateLimitGuard,
   ],
 })
 export class AuthModule {}

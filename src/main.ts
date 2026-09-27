@@ -14,6 +14,7 @@ async function bootstrap(): Promise<void> {
     .setDescription('Documentación de la API de Bruma Coffee')
     .setVersion('1.0')
     .addTag('coffee')
+    .addTag('auth')
     .build()
 
   const documentFactory = () => SwaggerModule.createDocument(app, swaggerConfig)

@@ -19,7 +19,7 @@ export class FakeSessionToken implements SessionTokenPort {
 
   async issueAccessToken(subject: string, role: string): Promise<AccessToken> {
     this.accessIssued += 1
-    this.subjects.push(subject)
+    this.subjects.push(`${subject}|${role}`)
     const emitido: AccessToken = {
       token: `access-${this.accessIssued}-${role}`,
       expiresInSeconds: 900,
@@ -45,14 +45,23 @@ export class FakeSessionToken implements SessionTokenPort {
     return `hash-${token}`
   }
 
+  /**
+   * Solo acepta los tokens que este mismo fake emitio. Si aceptara cualquier
+   * cadena, un test passaria con un token caducado o con un refresh en el sitio
+   * del access, que son justo los casos que el guard tiene que rechazar.
+   */
   async verifyAccessToken(token: string): Promise<AccessTokenClaims | null> {
-    if (token === '') {
+    const indice = this.access.findIndex((emitido) => emitido.token === token)
+
+    if (indice === -1) {
       return null
     }
 
+    const [subject, role] = this.subjects[indice]?.split('|') ?? []
+
     return {
-      subject: this.subjects[0] ?? '11111111-1111-4111-8111-111111111111',
-      role: token.includes(UserRole.ADMIN) ? UserRole.ADMIN : UserRole.CUSTOMER,
+      subject: subject ?? '11111111-1111-4111-8111-111111111111',
+      role: role ?? UserRole.CUSTOMER,
     }
   }
 }

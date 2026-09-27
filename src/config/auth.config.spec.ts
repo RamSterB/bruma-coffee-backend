@@ -37,6 +37,18 @@ describe('authConfig', () => {
     }
   })
 
+  it('marca las cookies como seguras solo en produccion', () => {
+    const anterior = process.env.NODE_ENV
+
+    process.env.NODE_ENV = 'production'
+    expect(authConfig(config({})).secureCookies).toBe(true)
+
+    process.env.NODE_ENV = 'development'
+    expect(authConfig(config({})).secureCookies).toBe(false)
+
+    process.env.NODE_ENV = anterior
+  })
+
   it('ignora un TTL que no es un entero positivo', () => {
     process.env.ACCESS_TOKEN_TTL_SECONDS = 'mucho'
     process.env.REFRESH_TOKEN_TTL_SECONDS = '-1'
@@ -50,5 +62,35 @@ describe('authConfig', () => {
       delete process.env.ACCESS_TOKEN_TTL_SECONDS
       delete process.env.REFRESH_TOKEN_TTL_SECONDS
     }
+  })
+
+  describe('limite de intentos de login', () => {
+    afterEach(() => {
+      delete process.env.LOGIN_MAX_ATTEMPTS
+      delete process.env.LOGIN_WINDOW_MS
+    })
+
+    it('por defecto son cinco intentos por minuto', () => {
+      const leido = authConfig(config({ JWT_SECRET: 'x' }))
+
+      expect(leido.login).toEqual({ maxAttempts: 5, windowMs: 60000 })
+    })
+
+    it('toma el limite y la ventana del entorno', () => {
+      process.env.LOGIN_MAX_ATTEMPTS = '3'
+      process.env.LOGIN_WINDOW_MS = '15000'
+
+      const leido = authConfig(config({ JWT_SECRET: 'x' }))
+
+      expect(leido.login).toEqual({ maxAttempts: 3, windowMs: 15000 })
+    })
+
+    it('ignora un limite que no es un numero positivo', () => {
+      process.env.LOGIN_MAX_ATTEMPTS = 'muchos'
+
+      const leido = authConfig(config({ JWT_SECRET: 'x' }))
+
+      expect(leido.login.maxAttempts).toBe(5)
+    })
   })
 })
