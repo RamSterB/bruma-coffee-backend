@@ -58,7 +58,7 @@ const baseOptions = {
   ...credentials,
 }
 
-const dataSourceOptions = (database: string) => ({
+export const testDataSourceOptions = (database: string = TEST_DATABASE) => ({
   ...baseOptions,
   database,
   entities: [
@@ -107,7 +107,7 @@ export const resetTestDatabase = async (): Promise<DataSource> => {
   assertTestDatabase(TEST_DATABASE)
   await ensureDatabaseExists()
 
-  const dataSource = new DataSource(dataSourceOptions(TEST_DATABASE))
+  const dataSource = new DataSource(testDataSourceOptions())
   await dataSource.initialize()
 
   try {
