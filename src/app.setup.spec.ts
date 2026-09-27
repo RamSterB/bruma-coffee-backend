@@ -2,7 +2,7 @@ import { INestApplication } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import request from 'supertest'
 import { IsNumber, IsString, Min } from 'class-validator'
-import { configureApp } from './app.setup'
+import { buildCorsOptions, configureApp } from './app.setup'
 import { Body, Controller, Get, Module, Post } from '@nestjs/common'
 
 class CreateProbeDto {
@@ -99,6 +99,18 @@ describe('configureApp (seguridad)', () => {
         .set('Origin', 'https://atacante.example.com')
 
       expect(response.headers['access-control-allow-origin']).toBeUndefined()
+    })
+
+    it('permite la cabecera x-csrf-token, sin la cual refresh y logout no llegan al servidor', () => {
+      const opciones = buildCorsOptions({ allowedOrigins: ['http://localhost:5173'] })
+
+      expect(opciones.allowedHeaders).toContain('x-csrf-token')
+    })
+
+    it('sigue mandando credenciales, que es lo que hace possible la cookie de refresh', () => {
+      const opciones = buildCorsOptions({ allowedOrigins: ['http://localhost:5173'] })
+
+      expect(opciones.credentials).toBe(true)
     })
 
     it('no acepta el comodín como origen', async () => {

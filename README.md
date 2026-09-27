@@ -73,21 +73,27 @@ las variables (`DB_HOST=postgres16`, etc.) vía `containerEnv`.
 | `SEED_ADMIN_PASSWORD` | Contraseña de esa cuenta admin | `BrumaCafe2026!` |
 | `SEED_CUSTOMER_EMAIL` | Correo del cliente de ejemplo | `cliente@bruma-coffee.test` |
 | `SEED_CUSTOMER_PASSWORD` | Contraseña del cliente de ejemplo | `BrumaCafe2026!` |
-| `JWT_SECRET` | Secreto de firma del access token | *(sin valor por defecto)* |
+| `JWT_SECRET` | Secreto de firma del access token, mínimo 32 caracteres | *(obligatoria, sin default)* |
 | `ACCESS_TOKEN_TTL_SECONDS` | Vida del access token, en segundos | `900` |
 | `REFRESH_TOKEN_TTL_SECONDS` | Vida del refresh token y de su cookie, en segundos | `604800` |
+| `LOGIN_MAX_ATTEMPTS` | Intentos de login por ventana, contados por correo y por IP | `5` |
+| `LOGIN_WINDOW_MS` | Duración de esa ventana, en milisegundos | `60000` |
 | `BCRYPT_ROUNDS` | Coste de bcrypt al cifrar contraseñas | `10` |
 
 No hay variable `DB_SYNCHRONIZE`: el esquema se gestiona **solo** con migraciones y
 `synchronize` está en `false` fijo en el código.
 
-### El secreto de firma no tiene valor por defecto
+### El secreto de firma es obligatorio y la aplicación no arranca sin él
 
 `JWT_SECRET` es la única variable sin default: en desarrollo se escribe uno en `.env`, y en
 producción sale del almacén de secretos. No hay un valor de reserva en el código porque un
 secreto de ejemplo que se queda puesto en un despliegue es un token falso que alguien puede
-firmar por la aplicación. Si la variable falta, la aplicación arranca (para no dejar el servicio
-caído) pero ningún login puede emitir sesión.
+firmar por la aplicación.
+
+Si la variable falta, está vacía, son espacios o mide menos de 32 caracteres, el arranque aborta
+con un error que dice cuál de las dos cosas pasa. La razón es que una aplicación que arranca sin
+poder firmar parece sana y no lo está: acepta tráfico y responde 401 a todos los logins, con
+cuatro causas posibles y ninguna evidente. Es preferible no levantar el servicio.
 
 ### La contraseña del admin no está en el código
 
