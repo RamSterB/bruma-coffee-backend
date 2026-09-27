@@ -6,7 +6,7 @@ import cookieParser from 'cookie-parser'
 import request from 'supertest'
 import { resetTestDatabase } from '../src/testing/test-database'
 import { CSRF_COOKIE, REFRESH_COOKIE } from '../src/interfaces/http/auth/auth-cookie'
-import { LoginRateLimitGuard } from '../src/interfaces/http/auth/login-rate-limit.guard'
+import { LoginRateLimiter } from '../src/interfaces/http/auth/login-rate-limit.guard'
 
 /**
  * Estos tests van contra la aplicación real y contra PostgreSQL de verdad. Los
@@ -46,7 +46,7 @@ describe('/auth e2e', () => {
     await dataSource.query('TRUNCATE refresh_tokens, users, customers RESTART IDENTITY CASCADE')
     // El limitador cuenta en memoria: si no se limpia, el test que prueba el
     // bloqueo deja llena la cuota y falla el siguiente test sin motivo apparent.
-    app.get(LoginRateLimitGuard).limpiarContadores()
+    app.get(LoginRateLimiter).limpiarContadores()
   })
 
   const registrar = async () => {
@@ -169,6 +169,17 @@ describe('/auth e2e', () => {
         .expect(401)
 
       expect(respuesta.body.message).toMatch(/credenciales/i)
+    })
+
+    it('deja entrar seis veces seguidas a quien acierta, porque el contador se borra al acertar', async () => {
+      await registrar()
+
+      for (let intento = 0; intento < 6; intento += 1) {
+        await request(server)
+          .post('/api/auth/login')
+          .send({ email: cuenta.email, password: cuenta.password })
+          .expect(200)
+      }
     })
 
     it('bloquea a los seis intentos seguidos con 429', async () => {

@@ -36,7 +36,8 @@ import type { AppError } from '../../../domain/errors/app-error'
 import type { Result } from '../../../domain/result'
 import { JwtAuthGuard, type SessionInfo } from './auth.guards'
 import { CsrfGuard } from './csrf.guard'
-import { LoginRateLimitGuard } from './login-rate-limit.guard'
+import { LoginRateLimitGuard } from './login-rate-limit'
+import { IP_DESCONOCIDA, LoginRateLimiter } from './login-rate-limit.guard'
 import { REFRESH_COOKIE, clearAuthCookies, readRefreshCookie, setAuthCookies } from './auth-cookie'
 import {
   LoginDto,
@@ -46,8 +47,6 @@ import {
   SessionDto,
   SessionUserDto,
 } from './dto/auth.dto'
-
-const IP_DESCONOCIDA = 'desconocida'
 
 type SesionEmitida = {
   accessToken: string
@@ -66,7 +65,7 @@ export class AuthController {
     private readonly logoutUseCase: LogoutUseCase,
     private readonly getProfileUseCase: GetProfileUseCase,
     private readonly config: ConfigService,
-    private readonly loginRateLimit: LoginRateLimitGuard,
+    private readonly loginRateLimit: LoginRateLimiter,
   ) {}
 
   @Post('register')
@@ -127,7 +126,7 @@ export class AuthController {
 
     // Un acierto borra el historial de esa cuenta: si no, alguien que entra bien
     // cinco veces seguidas acabaria bloqueado por su propio uso legitimo.
-    this.loginRateLimit.marcarExito(dto.email, req.ip ?? IP_DESCONOCIDA)
+    this.loginRateLimit.limpiar(dto.email, req.ip ?? IP_DESCONOCIDA)
 
     return respuesta
   }
