@@ -33,6 +33,21 @@ export class TypeOrmGeographyRepository implements GeographyRepositoryPort {
     return encontrados.map((department) => ({ id: department.id, name: department.name }))
   }
 
+  async findDepartmentById(id: string): Promise<{ id: string; name: string } | null> {
+    const encontrado = await this.departments.findOne({ where: { id } })
+
+    return encontrado === null ? null : { id: encontrado.id, name: encontrado.name }
+  }
+
+  async listCitiesByDepartment(departmentId: string): Promise<{ id: string; name: string }[]> {
+    const encontradas = await this.cities.find({
+      where: { departmentId },
+      order: { name: 'ASC' },
+    })
+
+    return encontradas.map((city) => ({ id: city.id, name: city.name }))
+  }
+
   async findDepartmentByName(name: string): Promise<{ id: string; name: string } | null> {
     const encontrado = await this.departments
       .createQueryBuilder('department')
