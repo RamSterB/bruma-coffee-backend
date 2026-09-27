@@ -20,6 +20,7 @@
     ".ts"
   ],
   "setupFiles": [
-    "<rootDir>/test/setup-env.ts"
+    "<rootDir>/test/setup-env.ts",
+    "<rootDir>/test/setup-boot-env.ts"
   ]
 }
