@@ -95,6 +95,39 @@ con un error que dice cuál de las dos cosas pasa. La razón es que una aplicaci
 poder firmar parece sana y no lo está: acepta tráfico y responde 401 a todos los logins, con
 cuatro causas posibles y ninguna evidente. Es preferible no levantar el servicio.
 
+### El carrito en el servidor
+
+El carrito del navegador (`localStorage`) es el de cualquier visitante. Cuando la
+persona inicia sesión, el carrito del servidor entra en juego:
+
+| Ruta | Qué hace |
+|---|---|
+| `GET /api/cart` | Las líneas con el precio y el stock del catálogo de ahora |
+| `POST /api/cart/items` | Agrega una variante, sumando a la que ya había |
+| `PATCH /api/cart/items/:variantId` | Deja la línea en una cantidad exacta |
+| `DELETE /api/cart/items/:variantId` | Quita la línea |
+| `DELETE /api/cart` | Vacía el carrito |
+| `POST /api/cart/merge` | Sube el carrito del navegador al iniciar sesión |
+
+Todas exigen token de acceso, y el `userId` sale siempre del token: no va en el
+cuerpo ni en la URL, que es la única razón por la que una persona no puede tocar
+el carrito de otra.
+
+**El servidor gana el merge.** Si el carrito del servidor ya tenía algo, se
+queda él y lo del navegador se descarta entero; si estaba vacío, sube el del
+navegador. La respuesta es siempre el carrito resultante, para que el cliente lo
+reemplace sin tener que adivinar qué se descartó.
+
+**El precio y el stock los pone el servidor, siempre.** La tabla guarda solo
+variante y cantidad; el precio se lee del catálogo en cada apertura, así que un
+carrito guardado hace tiempo no promete un precio viejo. Una línea cuya variante
+se retiró vuelve marcada como no comprable, con subtotal cero, en vez de
+desaparecer sola: si desapareciera, el cliente vería un carrito al que le
+faltaban cosas sin que nadie le dijera por qué.
+
+La cantidad nunca supera el stock: se guarda recortada. El 99 del DTO es un tope
+técnico para que nadie mande un número absurdo, no una regla de compra.
+
 ### La contraseña del admin no está en el código
 
 La migración de arranque crea un admin y un cliente, pero su contraseña sale de

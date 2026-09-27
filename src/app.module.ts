@@ -7,6 +7,7 @@ import { GetCoffeesUseCase } from './application/use-cases/get-coffees.use-case'
 import { GetVariantsByIdsUseCase } from './application/use-cases/get-variants-by-ids.use-case'
 import { databaseConfig } from './config/database.config'
 import { AuthModule } from './config/auth.module'
+import { CartModule } from './config/cart.module'
 import { validateEnv } from './config/env.validation'
 import { PersistenceModule } from './infrastructure/persistence/persistence.module'
 import { CoffeeController } from './interfaces/http/coffee.controller'
@@ -22,6 +23,7 @@ import { AppExceptionFilter } from './interfaces/http/filters/app-exception.filt
     TypeOrmModule.forRootAsync(databaseConfig),
     PersistenceModule,
     AuthModule,
+    CartModule,
   ],
   controllers: [CoffeeController, VariantsController],
   providers: [

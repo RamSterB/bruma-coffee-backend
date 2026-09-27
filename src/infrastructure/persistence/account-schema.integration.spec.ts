@@ -2,6 +2,7 @@ import type { DataSource } from 'typeorm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals'
 import { resetTestDatabase } from '../../testing/test-database'
 import { CreateAccountTables1759000000000 } from '../../migrations/1759000000000-CreateAccountTables'
+import { CreateCartTables1759100000000 } from '../../migrations/1759100000000-CreateCartTables'
 import { UserRole } from '../../domain/enums/user-role.enum'
 import { CustomerTypeOrmEntity } from './customer.typeorm.entity'
 import { UserTypeOrmEntity } from './user.typeorm.entity'
@@ -181,6 +182,12 @@ describe('deshacer el esquema de cuentas', () => {
     await queryRunner.connect()
 
     try {
+      // El carrito se deshace antes que las cuentas porque su marca de tiempo es
+      // posterior, y TypeORM deshace en orden inverso. Sin este paso, carts
+      // seguiría apuntando a users y el DROP de users fallaría: el test tiene que
+      // reproducir el orden real de un rollback, no uno inventado.
+      await new CreateCartTables1759100000000().down(queryRunner)
+
       await down.down(queryRunner)
 
       const tras = await queryRunner.query(
