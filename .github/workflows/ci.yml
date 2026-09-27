@@ -70,6 +70,12 @@ jobs:
       - name: Tests de integración (PostgreSQL)
         run: pnpm test:integration
 
+      - name: Tests de extremo a extremo
+        run: pnpm test:e2e
+
+      - name: Cobertura de los tests de extremo a extremo
+        run: pnpm test:cov:e2e
+
       - name: Tests unitarios
         run: pnpm test:unit
 
