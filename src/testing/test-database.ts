@@ -1,6 +1,11 @@
 import { DataSource } from 'typeorm'
 import { CoffeeTypeOrmEntity } from '../infrastructure/persistence/coffee.typeorm.entity'
 import { CoffeeVariantTypeOrmEntity } from '../infrastructure/persistence/coffee-variant.typeorm.entity'
+import { CustomerTypeOrmEntity } from '../infrastructure/persistence/customer.typeorm.entity'
+import { RefreshTokenTypeOrmEntity } from '../infrastructure/persistence/refresh-token.typeorm.entity'
+import { UserTypeOrmEntity } from '../infrastructure/persistence/user.typeorm.entity'
+import { CreateAccountTables1759000000000 } from '../migrations/1759000000000-CreateAccountTables'
+import { SeedAccounts1759000001000 } from '../migrations/1759000001000-SeedAccounts'
 import { CreateCatalogTables1758800000000 } from '../migrations/1758800000000-CreateCatalogTables'
 import { AddCoffeeSearchIndex1758900002000 } from '../migrations/1758900002000-AddCoffeeSearchIndex'
 
@@ -56,12 +61,23 @@ const baseOptions = {
 const dataSourceOptions = (database: string) => ({
   ...baseOptions,
   database,
-  entities: [CoffeeTypeOrmEntity, CoffeeVariantTypeOrmEntity],
+  entities: [
+    CoffeeTypeOrmEntity,
+    CoffeeVariantTypeOrmEntity,
+    CustomerTypeOrmEntity,
+    UserTypeOrmEntity,
+    RefreshTokenTypeOrmEntity,
+  ],
   // El esquema lo crean las mismas migraciones que en producción, pero
   // importadas una a una: el glob de MIGRATIONS_GLOB depende de __dirname,
   // que no existe bajo ESM, y además el test debe saber qué esquema construye.
   synchronize: false,
-  migrations: [CreateCatalogTables1758800000000, AddCoffeeSearchIndex1758900002000],
+  migrations: [
+    CreateCatalogTables1758800000000,
+    AddCoffeeSearchIndex1758900002000,
+    CreateAccountTables1759000000000,
+    SeedAccounts1759000001000,
+  ],
   migrationsTableName: 'schema_migrations',
   logging: false,
 })
