@@ -47,7 +47,7 @@ export class UserTypeOrmEntity {
   toDomain(): User {
     return User.reconstitute({
       id: this.id,
-      email: this.email,
+      email: normalizeEmail(this.email),
       passwordHash: this.passwordHash,
       fullName: this.fullName,
       role: this.role,

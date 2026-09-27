@@ -19,7 +19,7 @@ export class CustomerTypeOrmEntity {
   toDomain(): Customer {
     return Customer.reconstitute({
       id: this.id,
-      email: this.email,
+      email: normalizeEmail(this.email),
       fullName: this.fullName,
       createdAt: this.createdAt,
     })
