@@ -73,9 +73,21 @@ las variables (`DB_HOST=postgres16`, etc.) vía `containerEnv`.
 | `SEED_ADMIN_PASSWORD` | Contraseña de esa cuenta admin | `BrumaCafe2026!` |
 | `SEED_CUSTOMER_EMAIL` | Correo del cliente de ejemplo | `cliente@bruma-coffee.test` |
 | `SEED_CUSTOMER_PASSWORD` | Contraseña del cliente de ejemplo | `BrumaCafe2026!` |
+| `JWT_SECRET` | Secreto de firma del access token | *(sin valor por defecto)* |
+| `ACCESS_TOKEN_TTL_SECONDS` | Vida del access token, en segundos | `900` |
+| `REFRESH_TOKEN_TTL_SECONDS` | Vida del refresh token y de su cookie, en segundos | `604800` |
+| `BCRYPT_ROUNDS` | Coste de bcrypt al cifrar contraseñas | `10` |
 
 No hay variable `DB_SYNCHRONIZE`: el esquema se gestiona **solo** con migraciones y
 `synchronize` está en `false` fijo en el código.
+
+### El secreto de firma no tiene valor por defecto
+
+`JWT_SECRET` es la única variable sin default: en desarrollo se escribe uno en `.env`, y en
+producción sale del almacén de secretos. No hay un valor de reserva en el código porque un
+secreto de ejemplo que se queda puesto en un despliegue es un token falso que alguien puede
+firmar por la aplicación. Si la variable falta, la aplicación arranca (para no dejar el servicio
+caído) pero ningún login puede emitir sesión.
 
 ### La contraseña del admin no está en el código
 
