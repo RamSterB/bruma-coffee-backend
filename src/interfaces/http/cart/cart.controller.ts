@@ -28,6 +28,7 @@ import { AddItemToCartUseCase } from '../../../application/use-cases/add-item-to
 import { ClearCartUseCase } from '../../../application/use-cases/clear-cart.use-case'
 import { GetCartUseCase } from '../../../application/use-cases/get-cart.use-case'
 import { GetOrderSummaryUseCase } from '../../../application/use-cases/get-order-summary.use-case'
+import { QuoteShippingUseCase } from '../../../application/use-cases/quote-shipping.use-case'
 import { MergeLocalCartUseCase } from '../../../application/use-cases/merge-local-cart.use-case'
 import { RemoveCartItemUseCase } from '../../../application/use-cases/remove-cart-item.use-case'
 import { UpdateCartItemQuantityUseCase } from '../../../application/use-cases/update-cart-item-quantity.use-case'
@@ -42,6 +43,8 @@ import {
   CartItemDto,
   MergeLocalCartDto,
   OrderSummaryDto,
+  ShippingDataDto,
+  ShippingQuoteDto,
   OrderSummaryLineDto,
   UpdateCartItemQuantityDto,
 } from './dto/cart.dto'
@@ -70,6 +73,7 @@ export class CartController {
     private readonly clearCartUseCase: ClearCartUseCase,
     private readonly mergeLocalCartUseCase: MergeLocalCartUseCase,
     private readonly getOrderSummaryUseCase: GetOrderSummaryUseCase,
+    private readonly quoteShippingUseCase: QuoteShippingUseCase,
   ) {}
 
   @Get()
@@ -94,6 +98,46 @@ export class CartController {
     const resumen = await this.getOrderSummaryUseCase.execute(req.auth.userId)
 
     return CartController.aResumenDto(resumen)
+  }
+
+  @Post('shipping-quote')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Confirmar el total con los datos de entrega',
+    description:
+      'Valida los datos de entrega, comprueba que la ciudad pertenezca al departamento elegido y devuelve el desglose ya confirmado. No guarda nada todavia: los datos se copian a la orden cuando se confirma la compra.',
+  })
+  @ApiOkResponse({ type: ShippingQuoteDto })
+  @ApiBadRequestResponse({
+    description: 'Algun dato no es valido, o la ciudad no es de ese departamento',
+  })
+  async quoteShipping(
+    @Req() req: PeticionAutenticada,
+    @Body() dto: ShippingDataDto,
+  ): Promise<ShippingQuoteDto> {
+    const resultado = await this.quoteShippingUseCase.execute({
+      userId: req.auth.userId,
+      ...dto,
+    })
+
+    if (!resultado.ok) {
+      throw resultado.error
+    }
+
+    const resumen = resultado.value
+
+    return {
+      ...CartController.aResumenDto(resumen),
+      shippingData: {
+        fullName: resumen.shippingData.fullName,
+        documentNumber: resumen.shippingData.documentNumber,
+        phone: resumen.shippingData.phone,
+        address: resumen.shippingData.address,
+        city: resumen.shippingData.city,
+        department: resumen.shippingData.department,
+      },
+      persisted: resumen.persisted,
+    }
   }
 
   @Post('items')

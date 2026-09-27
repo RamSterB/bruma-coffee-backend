@@ -107,6 +107,7 @@ persona inicia sesión, el carrito del servidor entra en juego:
 |---|---|
 | `GET /api/cart` | Las líneas con el precio y el stock del catálogo de ahora |
 | `GET /api/cart/summary` | El desglose antes de pagar: subtotal, envío, IVA y total |
+| `POST /api/cart/shipping-quote` | Confirma el desglose con los datos de entrega |
 | `POST /api/cart/items` | Agrega una variante, sumando a la que ya había |
 | `PATCH /api/cart/items/:variantId` | Deja la línea en una cantidad exacta |
 | `DELETE /api/cart/items/:variantId` | Quita la línea |
@@ -150,6 +151,32 @@ Cuando el subtotal alcanza el umbral la respuesta trae `isFreeShipping: true` y
 
 **Todos los importes se calculan en el backend.** El navegador solo los muestra,
 que es lo que impide que alguien negocie su propio precio desde la consola.
+
+### Los datos de envío
+
+`POST /api/cart/shipping-quote` valida los datos de entrega y devuelve el
+desglose ya confirmado: nombre, documento, teléfono, dirección, ciudad y
+departamento. **No guarda nada**: esos datos son copia de la orden y la orden se
+crea al confirmar la compra. Confirmar antes dejaría pedidos a medias de gente que
+entró a mirar y se fue.
+
+**La ciudad tiene que ser de ese departamento**, y la comprobación se hace
+contra la base, no con una lista en el código. Hay dos tablas: los 32
+departamentos con sus ciudades principales, más Bogotá D. C. que no es departamento
+pero se entrega igual. La comparación ignora mayúsculas y tildes con `unaccent`,
+para que "Bogota" encuentre "Bogotá": un formulario que rechaza lo que la persona
+acaba de escribir es un formulario que nadie usa.
+
+Se distinguen tres errores, porque en el formulario la corrección es distinta en
+cada caso: el departamento no existe, la ciudad no existe, o la ciudad es de otro
+departamento.
+
+El nombre que se guarda es **el del catálogo y no el que escribió la persona**: si
+cada compra guardara "Bogota", la orden tendría un dato que no existe en ninguna
+otra parte del sistema.
+
+**Ningún dato de pago entra aquí.** Ni número de tarjeta ni clave: la tarjeta se
+tokeniza en el cliente y la pasarela guarda el resto.
 
 ### La contraseña del admin no está en el código
 

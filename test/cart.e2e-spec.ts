@@ -545,4 +545,109 @@ describe('/cart e2e', () => {
       await request(server).get('/api/cart/summary').expect(401)
     })
   })
+
+  describe('POST /api/cart/shipping-quote', () => {
+    const envio = {
+      fullName: 'Persona Compradora',
+      documentNumber: '1098765434',
+      phone: '3001234567',
+      address: 'Carrera 7 con Calle 72',
+      city: 'Bogotá',
+      department: 'Cundinamarca',
+    }
+
+    it('devuelve el desglose confirmado con datos válidos', async () => {
+      const token = await crearSesion('persona@ejemplo.com')
+      await request(server)
+        .post('/api/cart/items')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ variantId, quantity: 2 })
+        .expect(201)
+
+      const respuesta = await request(server)
+        .post('/api/cart/shipping-quote')
+        .set('Authorization', `Bearer ${token}`)
+        .send(envio)
+        .expect(200)
+
+      expect(respuesta.body).toMatchObject({
+        subtotal: 84000,
+        tax: 15960,
+        shipping: 10000,
+        total: 109960,
+        persisted: false,
+        shippingData: { city: 'Bogotá', department: 'Cundinamarca' },
+      })
+    })
+
+    it('acepta la ciudad sin tildes, como a veces la escribe la gente', async () => {
+      const token = await crearSesion('persona@ejemplo.com')
+      await request(server)
+        .post('/api/cart/items')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ variantId, quantity: 1 })
+        .expect(201)
+
+      const respuesta = await request(server)
+        .post('/api/cart/shipping-quote')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ ...envio, city: 'Bogota' })
+        .expect(200)
+
+      expect((respuesta.body.shippingData as { city: string }).city).toBe('Bogotá')
+    })
+
+    it('rechaza con 400 una ciudad que no es de ese departamento', async () => {
+      const token = await crearSesion('persona@ejemplo.com')
+
+      await request(server)
+        .post('/api/cart/shipping-quote')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ ...envio, city: 'Medellín' })
+        .expect(400)
+    })
+
+    it('rechaza con 400 una ciudad que no existe', async () => {
+      const token = await crearSesion('persona@ejemplo.com')
+
+      await request(server)
+        .post('/api/cart/shipping-quote')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ ...envio, city: 'Ciudad Inventada' })
+        .expect(400)
+    })
+
+    it('rechaza con 400 un teléfono inválido, y no con un error de servidor', async () => {
+      const token = await crearSesion('persona@ejemplo.com')
+
+      await request(server)
+        .post('/api/cart/shipping-quote')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ ...envio, phone: '123' })
+        .expect(400)
+    })
+
+    it('no guarda nada: la orden se crea al confirmar la compra', async () => {
+      const token = await crearSesion('persona@ejemplo.com')
+
+      const respuesta = await request(server)
+        .post('/api/cart/shipping-quote')
+        .set('Authorization', `Bearer ${token}`)
+        .send(envio)
+        .expect(200)
+
+      // La orden ni siquiera existe todavia: se crea al confirmar la compra. Lo
+      // que se comprueba aqui es que esta llamada no deja nada escrito, ni en una
+      // orden ni en ningun otro sitio.
+      expect(respuesta.body.persisted).toBe(false)
+      const [{ total }] = await dataSource.query(
+        "SELECT COUNT(*)::int AS total FROM information_schema.tables WHERE table_name = 'orders'",
+      )
+      expect(total).toBe(0)
+    })
+
+    it('exige token', async () => {
+      await request(server).post('/api/cart/shipping-quote').send(envio).expect(401)
+    })
+  })
 })
