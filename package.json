@@ -22,7 +22,7 @@
     "m:gen": "npm run orm:init migration:generate",
     "m:run": "npm run orm:init migration:run",
     "m:revert": "npm run orm:init migration:revert",
-    "test:e2e": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest-e2e.json",
+    "test:e2e": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest-e2e.json --runInBand",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.spec.json",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "test:unit": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --testPathIgnorePatterns=\\.integration\\.spec\\.ts$",
