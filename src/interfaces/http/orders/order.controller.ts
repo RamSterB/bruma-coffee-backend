@@ -160,6 +160,14 @@ export class OrderController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Req() req: PeticionAutenticada,
   ): Promise<unknown> {
+    // **Antes de responder, se reconcilian los pagos pendientes.** El aviso de veredicto
+    // de la pasarela no está registrado en este despliegue, así que sin esto la compra se
+    // queda en PENDING para siempre: la pantalla de resultado se queda en "confirmando tu
+    // pago" sin que nada avance. Es idempotente —comprobar el estado de la orden sigue
+    // siendo lo que evita aplicar dos veces— y si la pasarela no contesta, aquí no se
+    // propaga: se responde con lo que hay.
+    await this.reconcilePendingPayments.execute().catch(() => undefined)
+
     return this.desdoblar(await this.getOrderStatus.execute(id, req.auth.userId))
   }
 
