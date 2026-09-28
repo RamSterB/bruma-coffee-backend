@@ -273,4 +273,27 @@ describe('ConfirmPaymentUseCase', () => {
     }
     expect(resultado.error.code).toBe('UNKNOWN_PAYMENT')
   })
+
+  it('vacía el carrito cuando el pago se aprueba, en el mismo momento que el stock', async () => {
+    const { orders, confirmar } = await montar()
+    orders.stock.set('v1', 10)
+    orders.registrarCarrito('usuario-1', ['v1'])
+
+    await confirmar.execute(evento({ status: 'APPROVED' }))
+
+    // Quien paga y sigue viendo su carrito lleno no sabe si se le cobró dos veces.
+    expect(orders.carritos.has('usuario-1')).toBe(false)
+  })
+
+  it('deja el carrito si el pago se rechaza, para poder reintentar', async () => {
+    const { orders, confirmar } = await montar()
+    orders.stock.set('v1', 10)
+    orders.registrarCarrito('usuario-1', ['v1'])
+
+    await confirmar.execute(evento({ status: 'DECLINED' }))
+
+    // Vaciarlo al rechazar tiraría la compra de alguien a quien solo se le rechaza
+    // una tarjeta, y que tendría que volver a armarla desde cero.
+    expect(orders.carritos.get('usuario-1')).toEqual(['v1'])
+  })
 })
