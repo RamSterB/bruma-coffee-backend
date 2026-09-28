@@ -173,4 +173,54 @@ describe('ReconcilePendingPaymentsUseCase', () => {
     expect(resultado.value.sinRespuesta).toEqual(['ref-1'])
     expect(resultado.value.aplicados).toBe(0)
   })
+
+  it('la segunda pasada no vuelve a descontar el stock', async () => {
+    const { orders, payments, reconciliar } = await montar()
+    orders.stock.set('v1', 10)
+    const viejo = payments.all()[0]
+    if (viejo !== undefined) {
+      viejo.createdAt = new Date('2026-09-27T10:00:00.000Z')
+    }
+    await reconciliar.execute({ olderThan: new Date('2026-09-27T12:00:00.000Z') })
+
+    // Segunda pasada con el pago aún marcado como antiguo a propósito: el veredicto
+    // ya está aplicado, así que no se vuelve a aplicar. Es la red de seguridad
+    // funcionando sobre un pago que alguien ya había confirmado.
+    const segundo = await reconciliar.execute({ olderThan: new Date('2026-09-27T12:00:00.000Z') })
+
+    expect(segundo.ok && segundo.value.revisados).toBe(0)
+    expect(orders.stock.get('v1')).toBe(8)
+  })
+
+  it('cuenta en sin respuesta un pago que no se puede aplicar por falta de stock', async () => {
+    const { payments, reconciliar } = await montar()
+    // Sin stock, el pago se queda sin aplicar. No es un fallo de la pasarela, pero
+    // tampoco se puede confirmar: el informe tiene que decirlo en algún sitio, y no
+    // puede ser un error que pare la reconciled la lista.
+    const viejo = payments.all()[0]
+    if (viejo !== undefined) {
+      viejo.createdAt = new Date('2026-09-27T10:00:00.000Z')
+    }
+
+    const resultado = await reconciliar.execute({ olderThan: new Date('2026-09-27T12:00:00.000Z') })
+
+    expect(resultado.ok).toBe(true)
+    if (!resultado.ok) {
+      return
+    }
+    expect(resultado.value.aplicados).toBe(0)
+    expect(resultado.value.sinRespuesta).toEqual(['ref-1'])
+  })
+
+  it('sin argumentos usa la ventana por defecto, que es la que usa el planificador', async () => {
+    const { gateway, reconciliar } = await montar()
+
+    // El endpoint llama sin argumentos, y por eso los valores por defecto tienen
+    // que ser los correctos: si el umbral se olvidara, se preguntarían pagos recién
+    // creados y la pasarela aún no habría decidido nada.
+    const resultado = await reconciliar.execute()
+
+    expect(resultado.ok).toBe(true)
+    expect(gateway.consulta).toHaveLength(0)
+  })
 })

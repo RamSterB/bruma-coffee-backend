@@ -172,3 +172,17 @@ describe('webhookUrl', () => {
     expect(validatePublicBaseUrl('https://tienda.example.com').advertencia).toBeUndefined()
   })
 })
+
+describe('validatePublicBaseUrl, los casos que faltan', () => {
+  it('rechaza una URL vacía, que es lo que pasa si nadie la define', () => {
+    expect(validatePublicBaseUrl('').ok).toBe(false)
+  })
+
+  it('rechaza un protocolo que no sea http, como un archivo', () => {
+    expect(validatePublicBaseUrl('file:///etc/passwd').ok).toBe(false)
+  })
+
+  it('acepta una URL con puerto, que es como queda el túnel', () => {
+    expect(validatePublicBaseUrl('http://localhost:8000').ok).toBe(true)
+  })
+})

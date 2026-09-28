@@ -260,4 +260,17 @@ describe('ConfirmPaymentUseCase', () => {
     expect(orders.stock.get('v1')).toBe(10)
     await expect(orders.findById(orden.id)).resolves.toMatchObject({ status: 'PENDING' })
   })
+
+  it('si la orden de un evento PENDING ya no existe, no dice que el pago se comprobó', async () => {
+    const { orders, confirmar } = await montar()
+    orders.reiniciar()
+
+    const resultado = await confirmar.execute(evento({ status: 'PENDING' }))
+
+    expect(resultado.ok).toBe(false)
+    if (resultado.ok) {
+      return
+    }
+    expect(resultado.error.code).toBe('UNKNOWN_PAYMENT')
+  })
 })

@@ -119,6 +119,12 @@ export class FakeOrderRepository implements OrderRepositoryPort {
     return { applied: true, order: actualizada, delivery, shortage: [] }
   }
 
+  /** Vacía el almacén. Para probar el caso en que lo que se busca ya no está. */
+  reiniciar(): void {
+    this.ordenes.clear()
+    this.envios.clear()
+  }
+
   all(): Order[] {
     return [...this.ordenes.values()]
   }

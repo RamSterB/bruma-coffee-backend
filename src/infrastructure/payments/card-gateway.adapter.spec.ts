@@ -443,3 +443,54 @@ describe('CardGatewayAdapter.getTransactionStatus', () => {
     })
   })
 })
+
+describe('CardGatewayAdapter con respuestas incompletas', () => {
+  it('avisa si el comercio no responde con 200, en vez de seguir sin token', async () => {
+    const { fetch } = peticion(
+      { status: 201, cuerpo: { data: { id: 'tx-1', status: 'PENDING' } } },
+      { status: 500, cuerpo: { error: 'no se puede' } },
+    )
+
+    const resultado = await new CardGatewayAdapter(CONFIG, fetch).createTransaction(entrada({}))
+
+    expect(resultado.ok).toBe(false)
+    if (resultado.ok) {
+      return
+    }
+    expect(resultado.error.status).toBe(502)
+  })
+
+  it('avisa si el comercio responde sin token de aceptación', async () => {
+    const { fetch } = peticion(
+      { status: 201, cuerpo: { data: { id: 'tx-1', status: 'PENDING' } } },
+      { status: 200, cuerpo: { data: {} } },
+    )
+
+    const resultado = await new CardGatewayAdapter(CONFIG, fetch).createTransaction(entrada({}))
+
+    expect(resultado.ok).toBe(false)
+  })
+
+  it('consulta sin datos de importe devuelve cero en vez de romperse', async () => {
+    const { fetch } = peticion({ status: 200, cuerpo: { data: {} } })
+
+    const resultado = await new CardGatewayAdapter(CONFIG, fetch).getTransactionStatus('tx-1')
+
+    expect(resultado.ok).toBe(true)
+    if (!resultado.ok) {
+      return
+    }
+    // Cero, y no `undefined`: el importe del evento no se usa para cobrar, pero
+    // tiene que ser un número para que quien lo lea no tenga que comprobarlo.
+    expect(resultado.value.amount).toBe(0)
+    expect(resultado.value.reference).toBe('tx-1')
+  })
+
+  it('un estado desconocido se trata como ERROR, no como aprobado', async () => {
+    const { fetch } = peticion({ status: 200, cuerpo: { data: { id: 'tx-1', status: 'RARO' } } })
+
+    const resultado = await new CardGatewayAdapter(CONFIG, fetch).getTransactionStatus('tx-1')
+
+    expect(resultado.ok && resultado.value.status).toBe('ERROR')
+  })
+})
