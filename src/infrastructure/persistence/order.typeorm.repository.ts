@@ -59,6 +59,19 @@ export class TypeOrmOrderRepository implements OrderRepositoryPort {
     })
   }
 
+  async findByUserId(userId: string, limit: number): Promise<Order[]> {
+    // El filtro va en el WHERE, no en memoria: así es imposible que se escape una
+    // orden ajena por olvidar un campo al mapear.
+    const filas = await this.dataSource.getRepository(OrderTypeOrmEntity).find({
+      where: { userId },
+      relations: { items: true },
+      order: { createdAt: 'DESC' },
+      take: limit,
+    })
+
+    return filas.map((fila) => this.aOrden(fila))
+  }
+
   async findDeliveryByOrderId(orderId: string): Promise<Delivery | null> {
     const fila = await this.dataSource.getRepository(DeliveryTypeOrmEntity).findOne({
       where: { orderId },

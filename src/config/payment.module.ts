@@ -14,6 +14,7 @@ import {
 } from '../application/use-cases/confirm-payment.use-case'
 import { SettlePaymentService } from '../application/use-cases/settle-payment.service'
 import { GetOrderStatusUseCase } from '../application/use-cases/get-order-status.use-case'
+import { GetOrdersUseCase } from '../application/use-cases/get-orders.use-case'
 import { CardGateway } from '../domain/ports/card-gateway.port'
 import { OrderRepositoryPort } from '../domain/ports/order.repository'
 import { PaymentRepositoryPort } from '../domain/ports/payment.repository'
@@ -74,6 +75,7 @@ export const CARD_GATEWAY_FETCH = 'CARD_GATEWAY_FETCH'
     ConfirmPaymentUseCase,
     ReconcilePendingPaymentsUseCase,
     GetOrderStatusUseCase,
+    GetOrdersUseCase,
   ],
 })
 export class PaymentModule {}
