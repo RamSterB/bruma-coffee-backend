@@ -32,7 +32,13 @@ describe('arranque sin configuracion completa', () => {
     Object.assign(process.env, env)
 
     return Test.createTestingModule({
-      imports: [ConfigModule.forRoot({ isGlobal: true, validate: validateEnv })],
+      // `ignoreEnvFile` no es opcional: ConfigModule.forRoot lee el .env del
+      // directorio de trabajo aunque este test borre las variables del proceso, y
+      // con el .env del desarrollador las llaves vuelven y el arranque pasa. Estos
+      // tests tienen que decidir el entorno ellos mismos.
+      imports: [
+        ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true, validate: validateEnv }),
+      ],
     }).compile()
   }
 

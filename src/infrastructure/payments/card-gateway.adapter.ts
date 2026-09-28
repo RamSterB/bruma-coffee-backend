@@ -14,9 +14,28 @@ import { integritySignature, verifyEventSignature, type GatewayEvent } from './g
 /** `fetch` como parámetro, y no el global, para que las pruebas no toquen la red. */
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
 
+/**
+ * El comercio viene envuelto en `data`. Se comprobó contra el host: la raíz solo
+ * tiene `data` y `meta`, así que leer `presigned_acceptance` en la raíz daría
+ * siempre `undefined` y la transacción se caería con un 422 que no explica nada.
+ */
+interface MerchantResponse {
+  data?: {
+    presigned_acceptance?: { acceptance_token?: string }
+    presigned_personal_data_auth?: { acceptance_token?: string }
+  }
+}
+
+/**
+ * La transacción creada viene **plana bajo `data`**, sin un `data.transaction`
+ * envolvente. Comprobado contra el sandbox: la raíz tiene `data` y `meta`, y dentro
+ * de `data` están `id`, `status` y `amount_in_cents` directamente. Leer
+ * `data.transaction.id` daba `undefined` en silencio, y con esa referencia perdida el
+ * webhook no casa nunca con el pago.
+ */
 interface TransactionResponse {
   status?: string
-  data?: { transaction?: { id?: string; status?: string } }
+  data?: { id?: string; status?: string }
   error?: { messages?: Record<string, string[]> }
 }
 
@@ -44,15 +63,54 @@ export class CardGatewayAdapter extends CardGateway {
     super()
   }
 
+  /**
+   * El token de aceptación se pide **en cada transacción**, no se cachea. Es de vida
+   * corta y la propia documentación avisa de que uno caducado es un error de
+   * validación garantizado; la llamada es barata.
+   */
+  private async pedirTokenDeAceptacion(): Promise<Result<string, AppError>> {
+    let respuesta: Response
+    try {
+      respuesta = await this.fetch(`${this.config.baseUrl}/merchants/${this.config.publicKey}`, {
+        headers: { Accept: 'application/json' },
+      })
+    } catch (error) {
+      return err(gatewayUnavailableError((error as Error).message))
+    }
+
+    if (!respuesta.ok) {
+      return err(gatewayUnavailableError(`el comercio respondió ${respuesta.status}`))
+    }
+
+    const cuerpo = (await respuesta.json()) as MerchantResponse
+    const token = cuerpo.data?.presigned_acceptance?.acceptance_token
+
+    if (typeof token !== 'string' || token.length === 0) {
+      return err(gatewayUnavailableError('el comercio no devolvio token de aceptacion'))
+    }
+
+    return ok(token)
+  }
+
   async createTransaction(
     input: CreateTransactionInput,
   ): Promise<Result<GatewayTransaction, AppError>> {
+    const aceptacion = await this.pedirTokenDeAceptacion()
+
+    if (!aceptacion.ok) {
+      return err(aceptacion.error)
+    }
+
+    // Los nombres de campo van en snake_case porque es lo que acepta la
+    // transactions: en camelCase responde 422 con "amount_in_cents no está
+    // presente", que parece un error de importes y en realidad es de formato.
     const cuerpo = {
-      amountInCents: input.amountInCents,
+      amount_in_cents: input.amountInCents,
       currency: 'COP',
       reference: input.orderNumber,
       status: 'PENDING',
-      payment_method: { type: 'CARD', token: input.cardToken },
+      acceptance_token: aceptacion.value,
+      payment_method: { type: 'CARD', installments: 1, token: input.cardToken },
       payment_source: input.customerDocument,
       customer_email: input.customerEmail,
       customer_name: input.customerName,
@@ -90,14 +148,14 @@ export class CardGatewayAdapter extends CardGateway {
       return err(gatewayUnavailableError(`la pasarela respondió ${respuesta.status}`))
     }
 
-    const estado = aEstado(leido.data?.transaction?.status ?? leido.status)
+    const estado = aEstado(leido.data?.status ?? leido.status)
 
     if (estado === 'DECLINED' || estado === 'ERROR' || estado === 'CANCELLED') {
       return err(gatewayDeclinedError(this.motivoDelRechazo(leido)))
     }
 
     return ok({
-      reference: leido.data?.transaction?.id ?? input.orderNumber,
+      reference: leido.data?.id ?? input.orderNumber,
       status: estado,
       amount: input.amountInCents,
     })

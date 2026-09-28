@@ -9,20 +9,36 @@ import type { FetchLike } from '../infrastructure/payments/card-gateway.adapter'
  */
 export const createCardGatewayStub = (referencia: () => string): FetchLike => {
   return async (url, init) => {
+    // El adaptador pide el comercio para sacar el token de aceptación antes de
+    // cobrar. Sin esta ruta, la prueba fallaría por un motivo que no es el que mide.
+    if (url.includes('/merchants/')) {
+      return {
+        ok: true,
+        status: 200,
+        // Envolto en `data`, que es como lo devuelve la pasarela.
+        json: async () => ({
+          data: {
+            presigned_acceptance: { acceptance_token: 'tok_aceptacion_de_pruebas' },
+            presigned_personal_data_auth: { acceptance_token: 'tok_datos_de_pruebas' },
+          },
+          meta: {},
+        }),
+      } as Response
+    }
+
     const cuerpo = JSON.parse(String(init?.body ?? '{}'))
 
     return {
       ok: true,
       status: 201,
+      // La transacción viene plana bajo `data`, como la manda la pasarela.
       json: async () => ({
         status: 'PENDING',
         data: {
-          transaction: {
-            id: referencia(),
-            reference: cuerpo.reference,
-            status: 'PENDING',
-            amountInCents: cuerpo.amountInCents,
-          },
+          id: referencia(),
+          reference: cuerpo.reference,
+          status: 'PENDING',
+          amount_in_cents: cuerpo.amount_in_cents,
         },
       }),
     } as Response

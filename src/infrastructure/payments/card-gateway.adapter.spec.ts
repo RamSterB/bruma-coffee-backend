@@ -1,8 +1,7 @@
 import { createHash } from 'node:crypto'
 import { CardGatewayAdapter } from './card-gateway.adapter'
 import type { CardGatewayConfig } from '../../config/card-gateway.config'
-import { err, ok, type Result } from '../../domain/result'
-import { gatewayDeclinedError, gatewayUnavailableError } from '../../domain/errors/payment.errors'
+import type { Result } from '../../domain/result'
 import type { AppError } from '../../domain/errors/app-error'
 import type { CreateTransactionInput, WebhookHeaders } from '../../domain/ports/card-gateway.port'
 
@@ -16,21 +15,54 @@ const CONFIG: CardGatewayConfig = {
 
 type Respuesta = { status: number; cuerpo: unknown }
 
-const peticion = (respuesta: Respuesta) => {
+const ACEPTACION_POR_DEFECTO: Respuesta = {
+  status: 200,
+  // Envolta en `data` como la pasarela real: leerlo en la raíz daría `undefined`
+  // siempre, y el test pasaría mientras el cobro falla con un 422 sin explicación.
+  cuerpo: {
+    data: {
+      presigned_acceptance: { acceptance_token: 'tok_aceptacion_1' },
+      presigned_personal_data_auth: { acceptance_token: 'tok_datos_1' },
+    },
+    meta: {},
+  },
+}
+
+/**
+ * El doble responde a dos rutas distintas con dos respuestas distintas. El comercio
+ * es la única llamada que no es una transacción, y si el mock le devolviera la
+ * transacción, el test probaría algo que en la pasarela real no pasa.
+ */
+const peticion = (respuesta: Respuesta, aceptacion: Respuesta = ACEPTACION_POR_DEFECTO) => {
   const llamadas: { url: string; init: RequestInit }[] = []
 
   const fetch = async (url: string | URL, init: RequestInit = {}): Promise<Response> => {
-    llamadas.push({ url: String(url), init })
+    const direccion = String(url)
+    llamadas.push({ url: direccion, init })
+
+    const esComercio = direccion.includes('/merchants/')
+    const responde = esComercio ? aceptacion : respuesta
 
     return {
-      ok: respuesta.status >= 200 && respuesta.status < 300,
-      status: respuesta.status,
-      json: async () => respuesta.cuerpo,
-      text: async () => JSON.stringify(respuesta.cuerpo),
+      ok: responde.status >= 200 && responde.status < 300,
+      status: responde.status,
+      json: async () => responde.cuerpo,
+      text: async () => JSON.stringify(responde.cuerpo),
     } as Response
   }
 
   return { fetch, llamadas }
+}
+
+/** La llamada que crea la transacción, que ya no es la primera: antes va el comercio. */
+const transaccionDe = (llamadas: { url: string; init: RequestInit }[]): RequestInit => {
+  const llamada = llamadas.find((registrada) => registrada.url.endsWith('/transactions'))
+
+  if (llamada === undefined) {
+    throw new Error('El adaptador no llamo a /transactions')
+  }
+
+  return llamada.init
 }
 
 const entrada = (over: Partial<CreateTransactionInput> = {}): CreateTransactionInput => ({
@@ -52,14 +84,14 @@ describe('CardGatewayAdapter.createTransaction', () => {
   it('manda el importe en centavos y el token, y nunca un número de tarjeta', async () => {
     const { fetch, llamadas } = peticion({
       status: 201,
-      cuerpo: { status: 'PENDING', data: { transaction: { id: 'tx-1', status: 'PENDING' } } },
+      cuerpo: { status: 'PENDING', data: { id: 'tx-1', status: 'PENDING' } },
     })
     const adapter = new CardGatewayAdapter(CONFIG, fetch)
 
     await adapter.createTransaction(entrada({}))
 
-    const cuerpo = JSON.parse(String(llamadas[0]?.init.body))
-    expect(cuerpo.amountInCents).toBe(5998000)
+    const cuerpo = JSON.parse(String(transaccionDe(llamadas).body))
+    expect(cuerpo.amount_in_cents).toBe(5998000)
     expect(cuerpo.payment_method.token).toBe('tok_test_123')
     expect(JSON.stringify(cuerpo)).not.toMatch(/\d{13,19}/)
   })
@@ -67,24 +99,24 @@ describe('CardGatewayAdapter.createTransaction', () => {
   it('envía la llave privada, que es la única que autoriza un pago', async () => {
     const { fetch, llamadas } = peticion({
       status: 201,
-      cuerpo: { status: 'PENDING', data: { transaction: { id: 'tx-1', status: 'PENDING' } } },
+      cuerpo: { status: 'PENDING', data: { id: 'tx-1', status: 'PENDING' } },
     })
 
     await new CardGatewayAdapter(CONFIG, fetch).createTransaction(entrada({}))
 
-    const cabeceras = llamadas[0]?.init.headers as Record<string, string>
+    const cabeceras = transaccionDe(llamadas).headers as Record<string, string>
     expect(cabeceras.Authorization).toBe('Bearer prv_test_dos')
   })
 
   it('firma la petición con el secreto de integridad', async () => {
     const { fetch, llamadas } = peticion({
       status: 201,
-      cuerpo: { status: 'PENDING', data: { transaction: { id: 'tx-1', status: 'PENDING' } } },
+      cuerpo: { status: 'PENDING', data: { id: 'tx-1', status: 'PENDING' } },
     })
 
     await new CardGatewayAdapter(CONFIG, fetch).createTransaction(entrada({}))
 
-    const cuerpo = JSON.parse(String(llamadas[0]?.init.body))
+    const cuerpo = JSON.parse(String(transaccionDe(llamadas).body))
     // Sin esta firma, cambiar el importe en tránsito sería tan fácil como editar el
     // cuerpo, así que su presencia no es opcional ni decorativa.
     expect(cuerpo.signature).toEqual(expect.stringMatching(/^[0-9a-f]{64}$/))
@@ -93,18 +125,18 @@ describe('CardGatewayAdapter.createTransaction', () => {
   it('usa la referencia de la orden, que es como vuelve el evento', async () => {
     const { fetch, llamadas } = peticion({
       status: 201,
-      cuerpo: { status: 'PENDING', data: { transaction: { id: 'tx-1', status: 'PENDING' } } },
+      cuerpo: { status: 'PENDING', data: { id: 'tx-1', status: 'PENDING' } },
     })
 
     await new CardGatewayAdapter(CONFIG, fetch).createTransaction(entrada({}))
 
-    expect(JSON.parse(String(llamadas[0]?.init.body)).reference).toBe('BC-20260927-0001')
+    expect(JSON.parse(String(transaccionDe(llamadas).body)).reference).toBe('BC-20260927-0001')
   })
 
   it('devuelve la referencia y el estado que responde la pasarela', async () => {
     const { fetch } = peticion({
       status: 201,
-      cuerpo: { status: 'PENDING', data: { transaction: { id: 'tx-77', status: 'PENDING' } } },
+      cuerpo: { status: 'PENDING', data: { id: 'tx-77', status: 'PENDING' } },
     })
 
     const resultado = await new CardGatewayAdapter(CONFIG, fetch).createTransaction(entrada({}))
@@ -121,7 +153,7 @@ describe('CardGatewayAdapter.createTransaction', () => {
       status: 200,
       cuerpo: {
         status: 'DECLINED',
-        data: { transaction: { id: 'tx-1', status: 'DECLINED' } },
+        data: { id: 'tx-1', status: 'DECLINED' },
         error: { type: 'card_error', messages: { card_number: ['La tarjeta fue rechazada'] } },
       },
     })
@@ -221,11 +253,92 @@ describe('CardGatewayAdapter.verifySignature', () => {
   })
 })
 
-describe('errores del adaptador', () => {
-  it('expone gatewayDeclinedError y gatewayUnavailableError como errores de negocio', () => {
-    expect(gatewayDeclinedError('x').status).toBe(402)
-    expect(gatewayUnavailableError('x').status).toBe(502)
-    expect(ok(undefined).ok).toBe(true)
-    expect(err(new Error('x')).ok).toBe(false)
+describe('CardGatewayAdapter.createTransaction contra el contrato real', () => {
+  const transaccionAceptada = (referencia: string) => ({
+    status: 201,
+    cuerpo: { status: 'PENDING', data: { id: referencia, status: 'PENDING' } },
+  })
+
+  it('saca el identificador de data.id, que es donde viene, y no de data.transaction', async () => {
+    // Con la ruta equivocada el identificador salía undefined y la referencia que se
+    // guardaba era el número de orden. El webhook nunca habría casado con el pago y
+    // la orden se habría quedado PENDING para siempre.
+    const { fetch } = peticion(transaccionAceptada('tx-real'))
+
+    const resultado = await new CardGatewayAdapter(CONFIG, fetch).createTransaction(entrada({}))
+
+    expect(resultado.ok && resultado.value.reference).toBe('tx-real')
+  })
+
+  it('pide el token de aceptacion antes de cobrar, porque es obligatorio', async () => {
+    const { fetch, llamadas } = peticion(transaccionAceptada('tx-1'))
+
+    const resultado = await new CardGatewayAdapter(CONFIG, fetch).createTransaction(entrada({}))
+
+    const texturas = llamadas.map((llamada) => llamada.url)
+    expect(texturas.some((url) => url.includes('/merchants/'))).toBe(true)
+    expect(resultado.ok).toBe(true)
+  })
+
+  it('manda el token de aceptacion en el cuerpo de la transaccion', async () => {
+    const { fetch, llamadas } = peticion(transaccionAceptada('tx-1'))
+
+    await new CardGatewayAdapter(CONFIG, fetch).createTransaction(entrada({}))
+
+    const cuerpo = JSON.parse(String(transaccionDe(llamadas).body))
+    expect(cuerpo.acceptance_token).toBe('tok_aceptacion_1')
+  })
+
+  it('usa snake_case en los importes, porque en camel_case la pasarela responde 422', async () => {
+    const { fetch, llamadas } = peticion(transaccionAceptada('tx-1'))
+
+    await new CardGatewayAdapter(CONFIG, fetch).createTransaction(entrada({}))
+
+    const cuerpo = JSON.parse(String(transaccionDe(llamadas).body))
+    expect(cuerpo.amount_in_cents).toBe(5998000)
+    expect(cuerpo.amountInCents).toBeUndefined()
+  })
+
+  it('pide las cuotas, que la pasarela las espera en payment_method', async () => {
+    const { fetch, llamadas } = peticion(transaccionAceptada('tx-1'))
+
+    await new CardGatewayAdapter(CONFIG, fetch).createTransaction(entrada({}))
+
+    const cuerpo = JSON.parse(String(transaccionDe(llamadas).body))
+    expect(cuerpo.payment_method.installments).toBe(1)
+  })
+
+  it('traduce un rechazo de la pasarela, que llega con 201 y estado DECLINED', async () => {
+    // El rechazo no es un error de API: es un 201 con el estado DECLINED. Si se
+    // tratara como exito, la orden quedaria PENDING para siempre sin que nada
+    // avise, porque nunca llegaria un evento que la resolviera.
+    const { fetch } = peticion({
+      status: 201,
+      cuerpo: {
+        status: 'DECLINED',
+        data: { id: 'tx-1', status: 'DECLINED' },
+      },
+    })
+
+    const resultado = await new CardGatewayAdapter(CONFIG, fetch).createTransaction(entrada({}))
+
+    expect(resultado.ok).toBe(false)
+    if (resultado.ok) {
+      return
+    }
+    expect(resultado.error.status).toBe(402)
+  })
+
+  it('avisa como pasarela caída si no se puede pedir el token de aceptacion', async () => {
+    const caida: Respuesta = { status: 500, cuerpo: { error: 'no se puede' } }
+    const { fetch } = peticion(caida, caida)
+
+    const resultado = await new CardGatewayAdapter(CONFIG, fetch).createTransaction(entrada({}))
+
+    expect(resultado.ok).toBe(false)
+    if (resultado.ok) {
+      return
+    }
+    expect(resultado.error.status).toBe(502)
   })
 })

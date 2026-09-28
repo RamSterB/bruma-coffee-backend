@@ -34,9 +34,7 @@ export abstract class OrderRepositoryPort {
    * haber tocado nada. Idempotente: si el pago ya estaba resuelto, no vuelve a
    * descontar.
    */
-  abstract applyPaymentOutcome(
-    outcome: PaymentOutcome,
-  ): Promise<{
+  abstract applyPaymentOutcome(outcome: PaymentOutcome): Promise<{
     applied: boolean
     order: Order
     delivery: Delivery | null

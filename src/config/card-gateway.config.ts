@@ -38,15 +38,23 @@ type GatewayEnvironment = 'sandbox' | 'production'
  * Que prefijo espera cada llave en cada ambiente. Una llave `pub_prod_` con la URL
  * de sandbox cobra dinero real, asi que el prefijo se comprueba en vez de confiar
  * en que la URL este bien puesta.
+ *
+ * De pruebas hay **dos** convenciones y conviven: `test_`, que es la actual de la
+ * documentacion oficial, y `stagtest_`, la anterior, que es la que traen las
+ * llaves del material de origen y apuntan al host UAT. Se aceptan las dos porque
+ * las dos son pruebas, y reconocer solo una dejaria la aplicacion sin arrancar con
+ * unas llaves perfectamente validas.
  */
-const PREFIJOS: Record<
-  keyof Omit<CardGatewayConfig, 'baseUrl'>,
-  Record<GatewayEnvironment, string>
-> = {
-  publicKey: { sandbox: 'pub_test_', production: 'pub_prod_' },
-  privateKey: { sandbox: 'prv_test_', production: 'prv_prod_' },
-  eventsSecret: { sandbox: 'test_events_', production: 'prod_events_' },
-  integritySecret: { sandbox: 'test_integrity_', production: 'prod_integrity_' },
+type LlaveDeLaPasarela = keyof Omit<CardGatewayConfig, 'baseUrl'>
+
+const PREFIJOS: Record<LlaveDeLaPasarela, Record<GatewayEnvironment, string[]>> = {
+  publicKey: { sandbox: ['pub_test_', 'pub_stagtest_'], production: ['pub_prod_'] },
+  privateKey: { sandbox: ['prv_test_', 'prv_stagtest_'], production: ['prv_prod_'] },
+  eventsSecret: { sandbox: ['test_events_', 'stagtest_events_'], production: ['prod_events_'] },
+  integritySecret: {
+    sandbox: ['test_integrity_', 'stagtest_integrity_'],
+    production: ['prod_integrity_'],
+  },
 }
 
 const texto = (valor: unknown): string => (typeof valor === 'string' ? valor.trim() : '')
@@ -72,14 +80,16 @@ export const cardGatewayConfig = (): CardGatewayConfig => cardGatewayConfigFrom(
  * son del proveedor no se adivinan, se rechazan.
  */
 export const gatewayEnvironment = (config: CardGatewayConfig): GatewayEnvironment | null => {
-  const ambientes = (Object.keys(PREFIJOS) as (keyof typeof PREFIJOS)[]).map((llave) => {
+  const ambientes = (Object.keys(PREFIJOS) as LlaveDeLaPasarela[]).map((llave) => {
     const valor = config[llave]
 
-    return valor.startsWith(PREFIJOS[llave].sandbox)
-      ? ('sandbox' as const)
-      : valor.startsWith(PREFIJOS[llave].production)
-        ? ('production' as const)
-        : null
+    if (PREFIJOS[llave].sandbox.some((prefijo) => valor.startsWith(prefijo))) {
+      return 'sandbox' as const
+    }
+
+    return PREFIJOS[llave].production.some((prefijo) => valor.startsWith(prefijo))
+      ? ('production' as const)
+      : null
   })
 
   const unico = ambientes[0]

@@ -195,6 +195,73 @@ código queda en el historial de git para siempre, y ahí no se puede cambiar. L
 nacen con `customers` propio y correo verificado, para que se pueda entrar sin tener que pasar
 todavía por la verificación de correo.
 
+## El pago
+
+El pago va en tres pasos y en este orden: la tarjeta y el envío, el resumen y el
+resultado. La tarjeta se tokeniza en el navegador, así que **el número nunca pasa por
+esta API**: lo único que llega es el token.
+
+| Endpoint | Qué hace |
+|---|---|
+| `POST /api/orders` | Crea la orden en `PENDING` y pide el cobro. |
+| `POST /api/webhooks/card-gateway` | Aplica el aviso de estado de la pasarela. |
+| `GET /api/orders/:id` | Estado final de la orden, con su envío. |
+| `GET /api/payments/config` | Solo la llave **pública** y la URL. |
+
+**El total lo calcula el servidor** a partir del carrito y de los precios del catálogo
+del momento. El cliente no puede mandar importes, y la fila tiene un `CHECK` que dice
+que el total es la suma de sus partes.
+
+**Sin las cuatro llaves de la pasarela la aplicación no arranca.** No hay adaptador
+simulado a propósito: una tienda que parece vender y no cobra esconde el fallo hasta el
+primer pago de un cliente. Las cuatro tienen que ser del mismo ambiente, y el prefijo se
+comprueba al arrancar porque hay dos convenciones de pruebas (`test_` y `stagtest_`) y
+las de producción se parecen lo bastante como para pegar la equivocada.
+
+### Las dos firmas, que no son la misma
+
+- **La petición de pago** se firma con `referencia + importe_en_centavos + moneda +
+  secreto_de_integridad`. Sin eso, cambiar el importe en tránsito sería tan fácil como
+  editar el cuerpo.
+- **El evento** se valida con los campos que el propio evento declara en
+  `signature.properties`, más su `timestamp` y el secreto de eventos. Esos campos **no
+  están codificados** porque cambian entre eventos: el mismo dato aparece como
+  `amount_in_cents` y como `amountInCents` según el caso, y una lista fija valida el
+  primer evento que se pruebe y falla en el siguiente.
+
+### Idempotencia
+
+No está en el código, porque el código no puede saber que dos peticiones del mismo
+evento llegaron a la vez. Está en el esquema: `UNIQUE (provider, provider_reference)`
+más el bloqueo de la fila de la orden y de las variantes **en orden de id**. Ese orden
+no es decorativo: sin él, dos cobros de la misma variante se bloquean en orden distinto
+y se quedan esperando el uno al otro.
+
+El estado de la orden, el descuento de stock y la creación del envío van en la **misma
+transacción**, y el stock se descuenta con una resta condicionada en SQL
+(`stock = stock - n WHERE stock >= n`). Entre un `SELECT` y un `UPDATE` cabe otro cobro,
+y dos restas dejan el stock en negativo.
+
+### Notas del contrato con la pasarela
+
+Cosas que no se deducen y que se comprobaron una por una contra el ambiente de pruebas.
+Cada una de ellas fue un 4xx o un 422 con un mensaje que no señalaba el problema real:
+
+- El endpoint de tokenización es **`/tokens/cards`**, en plural. En singular devuelve 404.
+- El token llega en **`data.id`** y el estado de éxito es **`CREATED`**, no `SUCCESS`.
+- El año de vencimiento va con **dos dígitos**. Mandar `2030` es un 422.
+- El token de la tarjeta **caduca** (en pruebas, a los dos días), así que la orden se
+  crea de inmediato.
+- Crear una transacción pide un **token de aceptación** al endpoint del comercio, y es
+  de vida corta: se pide en cada transacción, no se cachea.
+- El cuerpo de la transacción va en **snake_case**. En camelCase responde 422 con un
+  mensaje que parece un error de importe y en realidad es de formato.
+- El comercio viene envuelto en `data`, y la transacción creada también, **plana**: el
+  envoltorio `data.transaction` es solo del evento del webhook.
+- El mínimo del ambiente de pruebas son 1.500 **pesos** (150.000 centavos), que es lo
+  que fija el campo `amount_in_cents`.
+- Un pago rechazado **no es un error de API**: es un `201` con estado `DECLINED`.
+
 ## Comandos
 
 ```bash

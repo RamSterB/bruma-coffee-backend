@@ -107,4 +107,32 @@ describe('CARD_GATEWAY_CONFIG', () => {
   it('usa la URL de sandbox por defecto tambien cuando lee de un registro', () => {
     expect(cardGatewayConfigFrom({}).baseUrl).toBe(SANDBOX_BASE_URL)
   })
+
+  it('reconoce las llaves de la convencion antigua stagtest_ como sandbox', () => {
+    // La documentacion actual habla de pub_test_ y test_events_, pero las llaves del
+    // material de origen usan la convencion anterior (stagtest_). Las dos son el
+    // ambiente de pruebas: si solo se reconociera una, la aplicacion no arrancaria
+    // con las llaves que de verdad trae el material.
+    const antiguas = {
+      baseUrl: 'https://api-sandbox.co.uat.wompi.dev/v1',
+      publicKey: 'pub_stagtest_una',
+      privateKey: 'prv_stagtest_dos',
+      eventsSecret: 'stagtest_events_tres',
+      integritySecret: 'stagtest_integrity_cuatro',
+    }
+
+    expect(gatewayEnvironment(antiguas)).toBe('sandbox')
+  })
+
+  it('sigue rechazando una llave de pruebas junto a una de produccion', () => {
+    const mezcladas = {
+      baseUrl: 'https://api-sandbox.co.uat.wompi.dev/v1',
+      publicKey: 'pub_stagtest_una',
+      privateKey: 'prv_prod_dos',
+      eventsSecret: 'stagtest_events_tres',
+      integritySecret: 'stagtest_integrity_cuatro',
+    }
+
+    expect(gatewayEnvironment(mezcladas)).toBeNull()
+  })
 })
