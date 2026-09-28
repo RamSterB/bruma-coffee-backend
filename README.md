@@ -242,6 +242,41 @@ transacción**, y el stock se descuenta con una resta condicionada en SQL
 (`stock = stock - n WHERE stock >= n`). Entre un `SELECT` y un `UPDATE` cabe otro cobro,
 y dos restas dejan el stock en negativo.
 
+### Probar el webhook en local
+
+La pasarela avisa del estado de un pago llamando a una **URL pública**, así que en local
+no hay forma de probarlo sin túnel. El camino es:
+
+```bash
+# 1. Túnel hacia la API (quick tunnel, sin cuenta)
+cloudflared tunnel --url http://localhost:8000
+
+# 2. Copiar la URL que imprime y ponerla en el .env
+PUBLIC_BASE_URL=https://<lo-que-imprima>.trycloudflare.com
+
+# 3. Arrancar la API: ella sola imprime la URL exacta que hay que registrar
+pnpm start:dev
+
+# 4. Registrar esa URL en el panel, en Developers -> eventos, en el ambiente sandbox
+```
+
+Lo que se ve al arrancar es esto, y evita tener que deducir la URL a mano:
+
+```
+[Arranque] Webhook de la pasarela (ambiente sandbox):
+[Arranque]   https://<tunel>.trycloudflare.com/api/webhooks/card-gateway
+[Arranque]   Hay que registrar esa URL en el panel, en Developers -> eventos.
+```
+
+El registro se hace **en el panel y por ambiente**: el de sandbox y el de producción son
+independientes, y por eso la URL de la variable es la de producción en el despliegue y
+la del túnel en local.
+
+**El webhook responde 200 a todo lo que no puede tratar, salvo a la firma inválida
+(401).** Un evento de una transacción que no conozco se responde 200 e ignorado, porque
+con un 4xx la pasarela lo reintenta tres veces en 24 horas y reintentar no lo va a
+convertir en un evento conocido.
+
 ### Notas del contrato con la pasarela
 
 Cosas que no se deducen y que se comprobaron una por una contra el ambiente de pruebas.

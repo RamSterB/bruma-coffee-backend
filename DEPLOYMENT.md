@@ -120,6 +120,41 @@ export class HealthController {
 y registrarlo en `AppModule`. Alternativa con librería oficial: `@nestjs/terminus`
 (`HealthCheckService` + `TypeOrmHealthIndicator`).
 
+### URL de evento de la pasarela
+
+La pasarela avisa del estado de cada pago llamando a una URL nuestra. Esa URL hay que
+**registrarla en el panel, a mano, y por ambiente**: el registro de sandbox y el de
+producción son independientes, y por eso la URL de cada uno es distinta.
+
+1. Definir `PUBLIC_BASE_URL` como variable de entorno del task de ECS, con la URL del
+   ALB: `https://api.tudominio.com`. **No es un secreto**, así que puede ir en texto
+   plano; lo que no puede es ir *ausente*, porque sin ella nadie sabe qué registrar.
+2. La aplicación **imprime al arrancar** la URL exacta que hay que copiar al panel:
+
+   ```
+   [Arranque] Webhook de la pasarela (ambiente production):
+   [Arranque]   https://api.tudominio.com/api/webhooks/card-gateway
+   [Arranque]   Hay que registrar esa URL en el panel, en Developers -> eventos.
+   ```
+
+   El ambiente sale del prefijo de las llaves, así que ese log es también la
+   comprobación de que el despliegue está con las llaves correctas. Si dice otra cosa,
+   el despliegue está con las llaves del otro ambiente.
+3. En el panel: **Developers -> eventos**, en el ambiente correspondiente, registrar
+   `https://api.tudominio.com/api/webhooks/card-gateway` y activar el evento
+   `transaction.updated`.
+4. El ALB tiene que dejar pasar `POST` a esa ruta. No necesita reglas especiales: es
+   una ruta más del backend.
+
+**El registro es un paso manual y es el que más se olvida.** El síntoma es que el pago
+se queda `PENDING` para siempre, sin error en ninguna parte: la orden se creó bien y
+nadie azonó que faltaba el aviso. Por eso el log del arranque existe.
+
+**Para probar el webhook en local hace falta un túnel**, porque `localhost` no es
+alcanzable desde internet. La receta está en el `README`, sección "Probar el webhook en
+local". En local `PUBLIC_BASE_URL` es la URL del túnel, que cambia en cada ejecución; en
+producción es la del balanceador y no cambia.
+
 ## 3. Frontend (S3 + CloudFront)
 
 1. Build en CI con la API apuntando al dominio de producción:
@@ -237,6 +272,9 @@ jobs:
 - [ ] Sin `.env` ni credenciales en el repositorio (solo `.env.example`).
 - [ ] RDS en subred **privada**, SG restringido al SG del ECS.
 - [ ] Secrets en **Secrets Manager / SSM**, referenciados por ARN en el task de ECS.
+- [ ] `PUBLIC_BASE_URL` definida con la URL del ALB, y **la URL de evento registrada en
+      el panel de la pasarela en los dos ambientes** (sandbox y producción). El log de
+      arranque dice si el ambiente es el correcto.
 - [ ] Credenciales AWS en CI mediante **OIDC** (sin Access Keys).
 - [ ] CORS restringido al dominio real del frontend.
 - [ ] `DB_SYNCHRONIZE=false` en producción y esquema vía migraciones.

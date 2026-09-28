@@ -4,6 +4,8 @@ import {
   cardGatewayConfig,
   cardGatewayConfigFrom,
   gatewayEnvironment,
+  validatePublicBaseUrl,
+  webhookUrl,
 } from './card-gateway.config'
 
 describe('cardGatewayConfig', () => {
@@ -134,5 +136,39 @@ describe('CARD_GATEWAY_CONFIG', () => {
     }
 
     expect(gatewayEnvironment(mezcladas)).toBeNull()
+  })
+})
+
+describe('webhookUrl', () => {
+  it('devuelve la URL del webhook a partir de la URL pública, sin barra final', () => {
+    expect(webhookUrl('https://tienda.example.com/', '/api/webhooks/card-gateway')).toBe(
+      'https://tienda.example.com/api/webhooks/card-gateway',
+    )
+  })
+
+  it('rechaza una URL pública que no es absoluta, porque no sirve para nada', () => {
+    // Sin esto, la URL del webhook sería "undefined/api/..." y el evento llegaría a
+    // un sitio que no existe. Es un fallo silencioso: la pasarela insiste tres
+    // veces y nadie sabe por qué.
+    const resultado = validatePublicBaseUrl('localhost:8000')
+
+    expect(resultado.ok).toBe(false)
+  })
+
+  it('acepta una URL absoluta con http, que es lo único que hay en local', () => {
+    expect(validatePublicBaseUrl('http://localhost:8000').ok).toBe(true)
+  })
+
+  it('avisa si la URL pública usa http y no https', () => {
+    // El aviso no es un bloqueo porque en local solo hay http, pero en producción
+    // un webhook en http se puede mandar alterado por cualquiera en medio.
+    const resultado = validatePublicBaseUrl('http://tienda.example.com')
+
+    expect(resultado.ok).toBe(true)
+    expect(resultado.advertencia).toMatch(/https/i)
+  })
+
+  it('no avisa si la URL pública ya usa https', () => {
+    expect(validatePublicBaseUrl('https://tienda.example.com').advertencia).toBeUndefined()
   })
 })

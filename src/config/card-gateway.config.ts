@@ -96,3 +96,61 @@ export const gatewayEnvironment = (config: CardGatewayConfig): GatewayEnvironmen
 
   return ambientes.every((ambiente) => ambiente === unico && ambiente !== null) ? unico : null
 }
+
+/** Ruta donde la pasarela notifica el estado de cada cobro. */
+export const WEBHOOK_PATH = '/api/webhooks/card-gateway'
+
+/**
+ * La URL pública de esta aplicación, y la que hay que registrar en el panel de la
+ * pasarela para que nos llame.
+ *
+ * Existe como dato propio y no se deduce de nada porque hay tres sitios que
+ * necesitan la misma respuesta: el registro que se hace en el panel, el aviso al
+ * arrancar para no tener que buscarla, y la documentación del despliegue. Si cada
+ * uno lo compusiera por su cuenta, un día apuntarían a sitios distintos y el
+ * síntoma sería que "la pasarela no llama".
+ */
+export const PUBLIC_BASE_URL = 'PUBLIC_BASE_URL'
+
+export interface PublicUrlValidation {
+  ok: boolean
+  advertencia?: string
+}
+
+/**
+ * Valida la URL pública. Solo se avisa del `http` y no se bloquea, porque en local
+ * no hay `https` y sin túnel el webhook no se podría probar; pero el aviso está,
+ * porque en producción un webhook en http se puede alterar por el camino.
+ */
+export const validatePublicBaseUrl = (valor: string): PublicUrlValidation => {
+  const limpio = valor.trim()
+
+  if (limpio.length === 0) {
+    return { ok: false }
+  }
+
+  let url: URL
+  try {
+    url = new URL(limpio)
+  } catch {
+    return { ok: false }
+  }
+
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return { ok: false }
+  }
+
+  return url.protocol === 'http:'
+    ? {
+        ok: true,
+        advertencia: 'La URL pública usa http: en producción el webhook tiene que ser https.',
+      }
+    : { ok: true }
+}
+
+export const publicBaseUrl = (): string =>
+  (process.env.PUBLIC_BASE_URL ?? '').trim().replace(/\/+$/, '')
+
+/** La URL completa que hay que registrar en el panel de la pasarela. */
+export const webhookUrl = (base: string, path: string = WEBHOOK_PATH): string =>
+  `${base.replace(/\/+$/, '')}${path}`
