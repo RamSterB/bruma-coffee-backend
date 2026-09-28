@@ -40,12 +40,17 @@ describe('geografía pública', () => {
   it('lista los 32 departamentos sin pedir sesión', async () => {
     const respuesta = await request(server).get('/api/geography/departments').expect(200)
 
-    expect(respuesta.body).toHaveLength(32)
+    // **La lista va dentro de `items`, como en el resto de la API.** Un array suelto fue
+    // un fallo de verdad: el cliente leía `items`, no encontraba nada, y el desplegable
+    // del formulario de entrega salía vacío sin decir nada. El `?? []` del cliente lo
+    // convirtió en un formulario inutilizable en vez de en un error visible, y por eso
+    // hacía falta comprobar la forma de la respuesta y no solo que haya 200.
+    expect(respuesta.body.items).toHaveLength(32)
   })
 
   it('cada departamento trae su identificador y su nombre', async () => {
     const respuesta = await request(server).get('/api/geography/departments').expect(200)
-    const cundinamarca = respuesta.body.find(
+    const cundinamarca = respuesta.body.items.find(
       (d: { name: string }) => d.name === 'Cundinamarca',
     )
 
@@ -54,25 +59,27 @@ describe('geografía pública', () => {
 
   it('lista las ciudades de un departamento', async () => {
     const departamentos = await request(server).get('/api/geography/departments')
-    const antioquia = departamentos.body.find((d: { name: string }) => d.name === 'Antioquia')
+    const antioquia = departamentos.body.items.find(
+      (d: { name: string }) => d.name === 'Antioquia',
+    )
 
     const respuesta = await request(server)
       .get(`/api/geography/departments/${antioquia.id}/cities`)
       .expect(200)
 
-    expect(respuesta.body.map((c: { name: string }) => c.name)).toContain('Medellín')
+    expect(respuesta.body.items.map((c: { name: string }) => c.name)).toContain('Medellín')
   })
 
   it('Bogotá sale en los dos departamentos que la tienen, porque hay dos', async () => {
     const departamentos = await request(server).get('/api/geography/departments')
     const conBogota: string[] = []
 
-    for (const departamento of departamentos.body as { id: string; name: string }[]) {
+    for (const departamento of departamentos.body.items as { id: string; name: string }[]) {
       const ciudades = await request(server).get(
         `/api/geography/departments/${departamento.id}/cities`,
       )
 
-      if ((ciudades.body as { name: string }[]).some((c) => c.name === 'Bogotá')) {
+      if ((ciudades.body.items as { name: string }[]).some((c) => c.name === 'Bogotá')) {
         conBogota.push(departamento.name)
       }
     }
