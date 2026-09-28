@@ -43,8 +43,25 @@ export const buildHelmetOptions = (): HelmetOptions => ({
   frameguard: { action: 'sameorigin' },
 })
 
+/**
+ * Nada de lo que contesta esta API se guarda en el navegador ni en un intermediario.
+ *
+ * **Va en las respuestas y no en el manejador del 304, porque la peticion correcta es la
+ * que no se cachea.** Sin esta cabecera, el navegador guarda la respuesta con su `ETag`,
+ * la siguiente vez manda `If-None-Match` y recibe un **304 sin cuerpo**. Eso no es un
+ * error de red: `fetch` lo resuelve como una respuesta cualquiera, pero `response.ok`
+ * solo es cierto de 200 a 299, asi que el cliente lo toma por un fallo y lanza. En local
+ * no se cachea nada y nunca se ve; en produccion, la segunda visita falla siempre.
+ *
+ * `private` ademas de `no-store` porque ni un intermediario compartido tiene por que
+ * guardar el carrito o el historial de alguien.
+ */
 export const configureApp = (app: INestApplication, options: AppSecurityOptions): void => {
   app.setGlobalPrefix(API_PREFIX)
+  app.use((_req: unknown, res: { setHeader: (k: string, v: string) => void }, next: () => void) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+    next()
+  })
   // Sin esto req.cookies no existe y el refresh no llega a verse nunca.
   app.use(cookieParser())
   app.use(helmet(buildHelmetOptions()))
