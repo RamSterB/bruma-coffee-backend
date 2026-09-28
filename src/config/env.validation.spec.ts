@@ -9,6 +9,7 @@ import { validateEnv } from './env.validation'
 const pasarela = {
   CARD_GATEWAY_PUBLIC_KEY: 'pub_test_una',
   CARD_GATEWAY_PRIVATE_KEY: 'prv_test_dos',
+  CARD_GATEWAY_BASE_URL: 'https://api.pruebas.proveedor.example/v1',
   CARD_GATEWAY_EVENTS_SECRET: 'test_events_tres',
   CARD_GATEWAY_INTEGRITY_SECRET: 'test_integrity_cuatro',
 }

@@ -1,12 +1,14 @@
 import {
   CARD_GATEWAY_CONFIG,
-  SANDBOX_BASE_URL,
   cardGatewayConfig,
   cardGatewayConfigFrom,
   gatewayEnvironment,
   validatePublicBaseUrl,
   webhookUrl,
 } from './card-gateway.config'
+
+/** Host neutro de pruebas. El de verdad lo pone cada quien en su entorno. */
+const HOST_DE_PRUEBAS = 'https://api.pruebas.proveedor.example/v1'
 
 describe('cardGatewayConfig', () => {
   const entornoOriginal = { ...process.env }
@@ -15,16 +17,18 @@ describe('cardGatewayConfig', () => {
     process.env = { ...entornoOriginal }
   })
 
-  it('usa la URL de sandbox de la documentacion oficial cuando no se define ninguna', () => {
+  it('no se inventa la URL: si no se define, no hay ninguna', () => {
+    // Antes caia en un host escrito en el codigo. Sin valor por defecto el arranque se
+    // corta en la validacion, que es donde se puede decir que variable falta.
     delete process.env.CARD_GATEWAY_BASE_URL
 
-    expect(cardGatewayConfig().baseUrl).toBe(SANDBOX_BASE_URL)
+    expect(cardGatewayConfig().baseUrl).toBe('')
   })
 
   it('quita la barra final de la URL, que no pertenece a la API', () => {
-    process.env.CARD_GATEWAY_BASE_URL = 'https://sandbox.wompi.co/v1/'
+    process.env.CARD_GATEWAY_BASE_URL = 'https://api.pruebas.proveedor.example/v1/'
 
-    expect(cardGatewayConfig().baseUrl).toBe('https://sandbox.wompi.co/v1')
+    expect(cardGatewayConfig().baseUrl).toBe('https://api.pruebas.proveedor.example/v1')
   })
 
   it('lee las cuatro llaves del entorno', () => {
@@ -32,9 +36,10 @@ describe('cardGatewayConfig', () => {
     process.env.CARD_GATEWAY_PRIVATE_KEY = 'prv_test_bbb'
     process.env.CARD_GATEWAY_EVENTS_SECRET = 'test_events_ccc'
     process.env.CARD_GATEWAY_INTEGRITY_SECRET = 'test_integrity_ddd'
+    process.env.CARD_GATEWAY_BASE_URL = HOST_DE_PRUEBAS
 
     expect(cardGatewayConfig()).toEqual({
-      baseUrl: SANDBOX_BASE_URL,
+      baseUrl: HOST_DE_PRUEBAS,
       publicKey: 'pub_test_aaa',
       privateKey: 'prv_test_bbb',
       eventsSecret: 'test_events_ccc',
@@ -55,7 +60,7 @@ describe('cardGatewayConfig', () => {
 
 describe('gatewayEnvironment', () => {
   const llavesDe = (ambiente: 'test' | 'prod') => ({
-    baseUrl: SANDBOX_BASE_URL,
+    baseUrl: HOST_DE_PRUEBAS,
     publicKey: `pub_${ambiente}_una`,
     privateKey: `prv_${ambiente}_dos`,
     eventsSecret: `${ambiente}_events_tres`,
@@ -78,7 +83,7 @@ describe('gatewayEnvironment', () => {
 
   it('no reconoce el ambiente si las llaves no tienen el prefijo del proveedor', () => {
     const inventadas = {
-      baseUrl: SANDBOX_BASE_URL,
+      baseUrl: HOST_DE_PRUEBAS,
       publicKey: 'aaa',
       privateKey: 'bbb',
       eventsSecret: 'ccc',
@@ -106,8 +111,8 @@ describe('CARD_GATEWAY_CONFIG', () => {
     expect(config.publicKey).toBe('pub_test_del_argumento')
   })
 
-  it('usa la URL de sandbox por defecto tambien cuando lee de un registro', () => {
-    expect(cardGatewayConfigFrom({}).baseUrl).toBe(SANDBOX_BASE_URL)
+  it('tampoco se la inventa cuando lee de un registro', () => {
+    expect(cardGatewayConfigFrom({}).baseUrl).toBe('')
   })
 
   it('reconoce las llaves de la convencion antigua stagtest_ como sandbox', () => {
@@ -116,7 +121,7 @@ describe('CARD_GATEWAY_CONFIG', () => {
     // ambiente de pruebas: si solo se reconociera una, la aplicacion no arrancaria
     // con las llaves que de verdad trae el material.
     const antiguas = {
-      baseUrl: 'https://api-sandbox.co.uat.wompi.dev/v1',
+      baseUrl: 'https://api.pruebas.proveedor.example/v1',
       publicKey: 'pub_stagtest_una',
       privateKey: 'prv_stagtest_dos',
       eventsSecret: 'stagtest_events_tres',
@@ -128,7 +133,7 @@ describe('CARD_GATEWAY_CONFIG', () => {
 
   it('sigue rechazando una llave de pruebas junto a una de produccion', () => {
     const mezcladas = {
-      baseUrl: 'https://api-sandbox.co.uat.wompi.dev/v1',
+      baseUrl: 'https://api.pruebas.proveedor.example/v1',
       publicKey: 'pub_stagtest_una',
       privateKey: 'prv_prod_dos',
       eventsSecret: 'stagtest_events_tres',

@@ -15,6 +15,7 @@ const LLAVES_DEL_VALIDADOR = [
   'CARD_GATEWAY_PRIVATE_KEY',
   'CARD_GATEWAY_EVENTS_SECRET',
   'CARD_GATEWAY_INTEGRITY_SECRET',
+  'CARD_GATEWAY_BASE_URL',
 ] as const
 
 const LLAVES_DE_SANDBOX = {
@@ -22,6 +23,7 @@ const LLAVES_DE_SANDBOX = {
   CARD_GATEWAY_PRIVATE_KEY: 'prv_test_dos',
   CARD_GATEWAY_EVENTS_SECRET: 'test_events_tres',
   CARD_GATEWAY_INTEGRITY_SECRET: 'test_integrity_cuatro',
+  CARD_GATEWAY_BASE_URL: 'https://api.pruebas.proveedor.example/v1',
 } as const
 
 describe('arranque sin configuracion completa', () => {
