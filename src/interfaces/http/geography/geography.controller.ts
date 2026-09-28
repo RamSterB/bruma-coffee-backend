@@ -2,8 +2,6 @@ import { Controller, Get, NotFoundException, Param, ParseUUIDPipe } from '@nestj
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { GeographyRepositoryPort } from '../../../domain/ports/geography.repository'
 import {
-  CityDto,
-  DepartmentDto,
   ListCitiesResponseDto,
   ListDepartmentsResponseDto,
 } from './dto/geography.dto'
@@ -30,10 +28,15 @@ export class GeographyController {
       'Los 32 departamentos de Colombia más Bogotá D. C., que no es departamento pero se entrega igual. No necesita sesión.',
   })
   @ApiOkResponse({ type: ListDepartmentsResponseDto })
-  async listDepartments(): Promise<DepartmentDto[]> {
+  async listDepartments(): Promise<ListDepartmentsResponseDto> {
     const departamentos = await this.geography.listDepartments()
 
-    return departamentos.map((department) => ({ id: department.id, name: department.name }))
+    // La lista va dentro de `items`, como en el resto de la API. Devolverla suelta era
+    // un fallo silencioso: el cliente lee `items`, no encontraba la lista, y el
+    // desplegable del formulario de entrega salía vacío sin avisar.
+    return {
+      items: departamentos.map((department) => ({ id: department.id, name: department.name })),
+    }
   }
 
   @Get('departments/:departmentId/cities')
@@ -45,7 +48,7 @@ export class GeographyController {
   @ApiOkResponse({ type: ListCitiesResponseDto })
   async listCities(
     @Param('departmentId', new ParseUUIDPipe({ version: '4' })) departmentId: string,
-  ): Promise<CityDto[]> {
+  ): Promise<ListCitiesResponseDto> {
     const department = await this.geography.findDepartmentById(departmentId)
 
     if (department === null) {
@@ -54,6 +57,6 @@ export class GeographyController {
 
     const cities = await this.geography.listCitiesByDepartment(departmentId)
 
-    return cities.map((city) => ({ id: city.id, name: city.name }))
+    return { items: cities.map((city) => ({ id: city.id, name: city.name })) }
   }
 }
