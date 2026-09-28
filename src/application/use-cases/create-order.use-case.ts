@@ -36,9 +36,9 @@ export interface CreateOrderInput {
     department: string
   }
   /**
-   * Lo ignora a propósito. El total lo calcula el servidor (RF-06.5) y si el
-   * cliente pudiera mandarlo, el único trabajo de la validación sería compararlo
-   * con lo que ya se sabe, que no vale la pena.
+   * Lo ignora a propósito. El total lo calcula el servidor a partir del catálogo, y
+   * si el cliente pudiera mandarlo, el único trabajo de la validación sería
+   * compararlo con lo que ya se sabe, que no vale la pena.
    */
   total?: number
 }
@@ -66,9 +66,9 @@ export interface CreatedOrder {
 /**
  * Crea la orden en PENDING y pide el cobro.
  *
- * El orden es el que dicta el enunciado y el que evita el problema de las dos
- * tiendas: la orden existe antes de que se cobre, y si el cobro falla queda
- * registrada como pendiente en vez de desaparecer. Lo que **no** se hace aquí es
+ * El orden es el que evita el problema de las dos tiendas: la orden existe antes de
+ * que se cobre, y si el cobro falla queda registrada como pendiente en vez de
+ * desaparecer. Lo que **no** se hace aquí es
  * confirmar el pago: eso lo hace el evento de la pasarela, que es quien sabe si
  * el dinero se movió.
  */

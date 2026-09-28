@@ -10,8 +10,9 @@
  *   secreto. Sin el, la aplicacion firmaria con una llave vacia y devolveria 401 a
  *   todo el mundo sin decir por que: un fallo con cuatro causas posibles y ninguna
  *   obvia.
- * - La **pasarela de pago**: las cuatro llaves. No hay adaptador simulado
- *   (ADR-005), asi que sin ellas no hay forma de cobrar.
+ * - La **pasarela de pago**: las cuatro llaves. No hay adaptador simulado, el
+ *   adaptador habla con el proveedor de verdad, asi que sin ellas no hay forma de
+ *   cobrar.
  */
 import {
   cardGatewayConfigFrom,
@@ -48,6 +49,17 @@ const LLAVES_DE_LA_PASARELA = [
   ['CARD_GATEWAY_PRIVATE_KEY', 'privateKey'],
   ['CARD_GATEWAY_EVENTS_SECRET', 'eventsSecret'],
   ['CARD_GATEWAY_INTEGRITY_SECRET', 'integritySecret'],
+  /**
+   * La URL base va en la misma lista, y **es obligatoria a proposito**.
+   *
+   * Antes llevaba un valor por defecto escrito en el codigo, y por eso el nombre del
+   * proveedor acababa en un fichero del repositorio. Ademas, un valor por defecto que
+   * apunta a un host de pruebas es peor que ninguno: si alguien configura las llaves de
+   * un ambiente y olvida la URL, la aplicacion cobra en el sitio que le toque al valor
+   * de relleno en vez de negarse a arrancar. Sin valor por defecto, el arranque se corta
+   * y el mensaje dice exactamente que variable falta.
+   */
+  ['CARD_GATEWAY_BASE_URL', 'baseUrl'],
 ] as const satisfies readonly (readonly [string, keyof CardGatewayConfig])[]
 
 const problemasDePasarela = (pasarela: CardGatewayConfig): string[] => {

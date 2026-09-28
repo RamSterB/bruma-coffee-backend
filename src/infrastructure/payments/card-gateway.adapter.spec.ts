@@ -6,7 +6,7 @@ import type { AppError } from '../../domain/errors/app-error'
 import type { CreateTransactionInput, WebhookHeaders } from '../../domain/ports/card-gateway.port'
 
 const CONFIG: CardGatewayConfig = {
-  baseUrl: 'https://sandbox.wompi.co/v1',
+  baseUrl: 'https://api.pruebas.proveedor.example/v1',
   publicKey: 'pub_test_una',
   privateKey: 'prv_test_dos',
   eventsSecret: 'test_events_tres',

@@ -29,9 +29,6 @@ export interface CardGatewayConfig {
   integritySecret: string
 }
 
-/** URL de sandbox segun la documentacion oficial del proveedor. */
-export const SANDBOX_BASE_URL = 'https://sandbox.wompi.co/v1'
-
 type GatewayEnvironment = 'sandbox' | 'production'
 
 /**
@@ -65,7 +62,7 @@ const texto = (valor: unknown): string => (typeof valor === 'string' ? valor.tri
  * de `process.env` estaria comprobando una fuente distinta de la que arranca.
  */
 export const cardGatewayConfigFrom = (config: Record<string, unknown>): CardGatewayConfig => ({
-  baseUrl: (texto(config.CARD_GATEWAY_BASE_URL) || SANDBOX_BASE_URL).replace(/\/+$/, ''),
+  baseUrl: texto(config.CARD_GATEWAY_BASE_URL).replace(/\/+$/, ''),
   publicKey: texto(config.CARD_GATEWAY_PUBLIC_KEY),
   privateKey: texto(config.CARD_GATEWAY_PRIVATE_KEY),
   eventsSecret: texto(config.CARD_GATEWAY_EVENTS_SECRET),

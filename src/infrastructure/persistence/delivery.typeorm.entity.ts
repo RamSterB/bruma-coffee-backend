@@ -8,7 +8,7 @@ import {
 } from 'typeorm'
 import { OrderTypeOrmEntity } from './order.typeorm.entity'
 
-/** Envío, no dirección: la dirección es copia de la orden (ADR-016). */
+/** Envío, no dirección: la dirección es copia de la orden y no se guarda dos veces. */
 @Entity('deliveries')
 export class DeliveryTypeOrmEntity {
   @PrimaryGeneratedColumn('uuid')

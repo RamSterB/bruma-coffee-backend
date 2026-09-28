@@ -3,6 +3,15 @@
 API de **Bruma Coffee** construida con **NestJS**, **TypeORM** y **PostgreSQL**, documentada con
 **Swagger** y organizada con **arquitectura hexagonal** (Ports & Adapters).
 
+| | |
+|---|---|
+| **Tienda desplegada** | <https://don1v5z5j5m3b.cloudfront.net> |
+| **API desplegada** | <https://d1f0emo6o8pkuu.cloudfront.net> |
+| **Documentación de la API** | <https://d1f0emo6o8pkuu.cloudfront.net/api/docs> |
+| **Frontend** | [bruma-coffee-frontend](https://github.com/RamSterB/bruma-coffee-frontend) |
+
+La tienda y la API se sirven desde orígenes distintos y ambos por **HTTPS**.
+
 ## Stack
 
 | Capa | Tecnología |
@@ -49,7 +58,23 @@ src/
 **Regla de dependencia**: las dependencias apuntan hacia el dominio. Ni los casos de uso ni el
 dominio conocen TypeORM; el adaptador en `infrastructure/` implementa el puerto y se inyecta con
 DI de Nest (`{ provide: CoffeeRepositoryPort, useClass: CoffeeTypeOrmRepository }`).
-El módulo de ejemplo `coffee` (CRUD) demuestra el patrón completo.
+**El dominio no importa Nest ni TypeORM en ningún fichero.** Hoy se cumple por revisión, no
+por una prueba que lo vigile: una prueba que recorra el árbol y falle ante un `import`
+prohibido sería lo natural y **no está escrita**. Es un hueco conocido, no una regla
+garantizada por la suite.
+
+**Los controladores son una capa fina.** Validan la entrada con DTOs, llaman a un caso de
+uso y traducen el resultado a HTTP. No hay reglas de negocio en un controlador: si aparece
+una condición que compara precios o comprueba stock, está en el sitio equivocado.
+
+**Cada fallo de negocio es un valor, no una excepción.** Los casos de uso devuelven
+`Result<T, E>`; las excepciones son para lo excepcional. Así que el flujo de error de un
+endpoint se lee en su firma, y no hay una cadena de `try/catch` que probar de un camino.
+
+**Una comprobación es un caso de uso como cualquier otro.** La que decide si el contenedor
+recibe tráfico va por un puerto igual que el catálogo, y no importa `DataSource` en la capa
+HTTP: el día que cambie la base, el endpoint que no puede fallar es el último que debería
+tocar nadie.
 
 ## Devcontainer
 
@@ -320,6 +345,33 @@ Cada una de ellas fue un 4xx o un 422 con un mensaje que no señalaba el problem
   que fija el campo `amount_in_cents`.
 - Un pago rechazado **no es un error de API**: es un `201` con estado `DECLINED`.
 
+## Pruebas y cobertura
+
+Las pruebas se escriben **antes** que el código que las hace pasar. Los números de abajo
+son los del último `main`, reproducidos con los mismos comandos que usa la integración
+continua.
+
+```bash
+pnpm test            # unitarias y de integración contra PostgreSQL real
+pnpm test:cov        # unitarias + integración, con cobertura
+pnpm test:e2e        # extremo a extremo, contra la aplicación real
+pnpm test:cov:e2e    # extremo a extremo, con cobertura
+```
+
+| Suite | Pruebas | Sentencias | Ramas | Funciones | Líneas |
+|---|---|---|---|---|---|
+| Unitarias + integración | **653** | 81.79 % | 82.21 % | 83.54 % | 81.43 % |
+| Extremo a extremo | **104** | 81.02 % | 56.05 % | 77.91 % | 80.49 % |
+
+Los datos de integración no se simulan: levantan la aplicación contra un **PostgreSQL de
+verdad** y comprueban lo que hacen de verdad, que es lo que no se puede probar con un
+doble. Un ejemplo: el filtro del historial de órdenes se comprueba preguntando como si
+fuera otra persona y comprobando que no llega ni una fila.
+
+`jest.config` fija umbrales por carpeta y la integración continua falla si no se llegan.
+Hoy están en 69 % de sentencias y 81 % de ramas de forma global, y en 90 % / 88 % / 85 % /
+92 % para `src/infrastructure/persistence`, que es la parte donde un error cuesta dinero.
+
 ## Comandos
 
 ```bash
@@ -345,78 +397,183 @@ pnpm m:revert                             # revierte la última
 
 ## Endpoints
 
-La documentación interactiva está en **`http://localhost:8000/api/docs`** (prefijo global `/api`),
-generada con decoradores de `@nestjs/swagger`. Cuando la API esté desplegada, la URL pública se
-añade en este README.
+La documentación interactiva, generada con decoradores de `@nestjs/swagger`, está en:
+
+- **Desplegada:** <https://d1f0emo6o8pkuu.cloudfront.net/api/docs>
+- En local: `http://localhost:8000/api/docs` (prefijo global `/api`)
+
+Se puede importar en Postman desde la URL de la especificación, que es la misma con
+`/api/docs-json` al final.
 
 | Método | Ruta | Qué hace |
 |---|---|---|
-| `GET` | `/api/coffee` | Lista paginada y filtrable del catálogo. Filtros: `region`, `process`, `roastLevel`, `page`, `limit` |
-| `GET` | `/api/coffee/:id` | Detalle de un café con sus variantes de peso |
-| `GET` | `/api/variants?variantIds=<uuid>,<uuid>` | Resuelve variantes por identificador para el carrito. Máximo 50 ids |
+| `GET` | `/api/coffee` | Catálogo paginado y filtrable. Filtros: `region`, `process`, `roastLevel`, `page`, `limit` |
+| `GET` | `/api/coffee/{id}` | Detalle de un café con sus variantes de peso |
+| `GET` | `/api/variants?variantIds=…` | Resuelve variantes por identificador, para el carrito |
+| `GET` | `/api/geography/departments` | Departamentos donde se entrega |
+| `GET` | `/api/geography/departments/{id}/cities` | Ciudades de un departamento |
+| `POST` | `/api/auth/register` | Crea una cuenta y envía el enlace de verificación |
+| `POST` | `/api/auth/login` | Inicia sesión y devuelve el token de acceso |
+| `POST` | `/api/auth/refresh` | Renueva la sesión con la cookie de refresco |
+| `POST` | `/api/auth/logout` | Cierra la sesión y revoca el refresco |
+| `GET` | `/api/auth/me` | Perfil de la sesión actual |
+| `GET` | `/api/cart` | Carrito de la persona, con precios del servidor |
+| `POST` | `/api/cart/items` | Agrega una variante |
+| `PATCH` | `/api/cart/items/{variantId}` | Cambia la cantidad de una línea |
+| `DELETE` | `/api/cart/items/{variantId}` | Quita una línea |
+| `DELETE` | `/api/cart` | Vacía el carrito |
+| `POST` | `/api/cart/merge` | Sube el carrito del navegador al iniciar sesión |
+| `GET` | `/api/cart/summary` | Resumen de la orden antes de pagar |
+| `POST` | `/api/cart/shipping-quote` | Confirma el total con los datos de entrega |
+| `POST` | `/api/orders` | Crea la orden en pendiente y pide el cobro |
+| `GET` | `/api/orders` | Historial de órdenes de quien pregunta |
+| `GET` | `/api/orders/{id}` | Estado final de una orden propia |
+| `POST` | `/api/orders/reconcile` | Consulta a la pasarela los pagos que siguen pendientes |
+| `GET` | `/api/payments/config` | Configuración pública de la pasarela |
+| `POST` | `/api/webhooks/card-gateway` | Recibe el estado del pago desde la pasarela |
+| `GET` | `/api/health` | Comprobación de salud, la usa el balanceador |
 
-**No hay endpoints de escritura.** El catálogo se siembra con migraciones y no se expone creación
-de productos por API: el contenido de la tienda es un dato, no algo que edite el cliente.
+**Decisiones que se ven en la tabla:**
+
+- **El catálogo no tiene endpoints de escritura.** El contenido de la tienda se siembra con
+  migraciones y no hay creación de productos por API.
+- **Los importes solo se calculan aquí.** Ni el carrito ni el resumen aceptan un total del
+  cliente: el precio sale del catálogo y el cálculo, con IVA y envío, en el servidor.
+- **El webhook no es público ni autenticado con el esquema de los demás**: se autentica con la
+  firma que envía la pasarela, que es lo que permite que un tercero nos hable sin credenciales
+  propias.
+- **`/api/health` no pide sesión** y además **pregunta a la base de datos**: el balanceador lo
+  usa para decidir si el contenedor recibe tráfico, y un 200 que no comprueba nada mentiría.
 
 ## Modelo de datos
 
-El esquema se gestiona con migraciones de TypeORM. Hoy hay dos tablas, que son las que sostiene el
-catálogo y el carrito:
+Trece tablas, gestionadas con migraciones de TypeORM. El esquema no se sincroniza nunca
+(`DB_SYNCHRONIZE=false`): `synchronize` puede borrar datos sin avisar, y la única forma de
+cambiar el esquema es una migración versionada.
+
+### Catálogo
 
 ```
-┌──────────────────────────────┐        ┌───────────────────────────────────┐
-│ coffees                      │ 1    n │ coffee_variants                   │
-├──────────────────────────────┤────────│───────────────────────────────────┤
-│ id             uuid PK       │        │ id             uuid PK             │
-│ name           varchar(120)  │        │ coffee_id      uuid FK → coffees   │
-│ description    text          │        │ weight_grams   int > 0            │
-│ region         varchar(30)   │        │ price          numeric(12,2) ≥ 0  │
-│ process        varchar(20)   │        │ stock          int ≥ 0            │
-│ roast_level    varchar(20)   │        │ is_active      boolean             │
-│ tasting_notes  text[]        │        │ created_at / updated_at           │
-│ search_index   text          │        │ UNIQUE (coffee_id, weight_grams)  │
-│ is_active      boolean       │        └───────────────────────────────────┘
-│ created_at / updated_at      │          ON DELETE CASCADE desde coffees
-└──────────────────────────────┘
+┌────────────────────────────┐  1    n  ┌────────────────────────────────┐
+│ coffees                    │─────────│ coffee_variants                │
+├────────────────────────────┤         ├────────────────────────────────┤
+│ id              uuid PK    │         │ id              uuid PK         │
+│ name            varchar    │         │ coffee_id       uuid FK         │
+│ description     text       │         │ weight_grams    int > 0        │
+│ region          enum       │         │ price           numeric ≥ 0     │
+│ process         enum       │         │ stock           int ≥ 0        │
+│ roast_level     enum       │         │ is_active       boolean        │
+│ tasting_notes   text[]     │         │ UNIQUE (coffee_id, weight_grams)│
+│ search_index    text       │         └────────────────────────────────┘
+│ is_active       boolean    │            ON DELETE CASCADE
+└────────────────────────────┘
 ```
 
-Detalles que no se ven en el diagrama y sí importan:
+### Cuentas, sesión y carrito
 
-- **Enums cerrados con `CHECK` en base de datos.** `region`, `process` y `roast_level` están
-  validados en el dominio *y* con una restricción `CHECK` en la tabla, para que ningún INSERT que
-  se cuele por la backdoor pueda meter un valor inventado.
-- **`search_index`** se añadió en una migración aparte y se rellena en la aplicación con el
-  nombre, la región, el proceso, el nivel de tueste y las notas de cata, todo sin acentos ni
-  mayúsculas. Existe para que la búsqueda se pueda probar sin depender de `unaccent`, que depende
-  de la configuración regional del servidor.
-- **`price_from` no es una columna.** Es un método del dominio que devuelve el precio de la
-  variante más barata, o `null` si el café no tiene variantes activas. Se calcula al leer, porque
-  almacenarlo se desincronizaría en cuanto cambiara el precio de una variante.
-- Índices en `region`, `roast_level`, `process`, `is_active`, `search_index`, `coffee_id` y `stock`,
-  que son las columnas por las que se filtra.
-
-Las tablas de órdenes, pagos, carritos y usuarios están **diseñadas pero todavía no migradas**: el
-catálogo es lo único que está en la base de datos hoy.
-
-## Cobertura
-
-```bash
-pnpm test:cov
+```
+┌────────────────────────┐ 1  1 ┌────────────────────────┐ 1 n ┌────────────────────┐
+│ customers              │──────│ users                  │      │ refresh_tokens    │
+├────────────────────────┤      ├────────────────────────┤      ├────────────────────┤
+│ id         uuid PK     │      │ id            uuid PK  │      │ id          uuid PK│
+│ email      citext UQ   │◀─────│ email         citext UQ│      │ user_id     uuid FK│
+│ full_name  varchar     │      │ password_hash  varchar │      │ token_hash  varchar │
+└────────────────────────┘      │ role          enum     │      │ expires_at  timestz│
+                                │ customer_id   uuid FK  │      │ revoked_at  timestz │
+                                │ email_verified_at      │      └────────────────────┘
+                                └────────────────────────┘
+┌────────────────────────┐         ┌────────────────────────┐
+│ carts                  │ 1    n  │ cart_items             │
+├────────────────────────┤─────────│────────────────────────┤
+│ id         uuid PK     │         │ id         uuid PK     │
+│ user_id    uuid FK UQ  │         │ cart_id    uuid FK     │
+│ updated_at timestamptz │         │ variant_id uuid FK     │
+└────────────────────────┘         │ quantity   int > 0     │
+                                  │ UNIQUE (cart_id, variant_id)│
+                                  └────────────────────────┘
 ```
 
-| Capa | Cobertura |
+Un carrito por usuario como máximo: lo.unique sobre `carts.user_id` es lo que hace que dos
+peticiones simultáneas no creen dos carritos.
+
+### Compra: orden, pago y envío
+
+```
+┌────────────────────────────────────┐ 1 n ┌────────────────────────────┐
+│ orders                             │─────│ order_items                │
+├────────────────────────────────────┤     ├────────────────────────────┤
+│ id             uuid PK             │     │ id          uuid PK         │
+│ order_number   varchar UQ          │     │ order_id    uuid FK         │
+│ customer_id    uuid FK             │     │ variant_id  uuid FK         │
+│ user_id        uuid FK  (nullable) │     │ coffee_name varchar  ← copia │
+│ status         enum                │     │ weight_grams int      ← copia│
+│ payment_status enum                │     │ unit_price  numeric   ← copia│
+│ customer_name / document / phone   │     │ quantity    int > 0         │
+│ shipping_address / city / dept.    │     │ line_total  numeric         │
+│ subtotal / tax_amount / shipping   │     └────────────────────────────┘
+│ total           numeric            │       UNIQUE (order_id, variant_id)
+└────────────────────────────────────┘
+┌────────────────────────────────────┐ 1 1 ┌────────────────────────────┐
+│ payments                           │─────│ deliveries                  │
+├────────────────────────────────────┤     ├────────────────────────────┤
+│ id           uuid PK               │     │ id         uuid PK          │
+│ order_id     uuid FK UQ            │     │ order_id   uuid FK UQ       │
+│ provider     varchar               │     │ status     enum             │
+│ provider_reference varchar         │     │ carrier / tracking_code     │
+│ token        varchar               │     │ shipped_at / delivered_at   │
+│ status       enum                  │     └────────────────────────────┘
+│ amount       numeric               │
+│ raw_event    jsonb                 │
+└────────────────────────────────────┘
+```
+
+Los campos `coffee_name`, `weight_grams` y `unit_price` de `order_items` son **copias a
+propósito**. Si el café cambia de nombre o de precio después de la compra, una orden
+histórica tiene que seguir diciendo lo que se compró y lo que se pagó.
+
+### Geografía
+
+`departments` y `cities` sostienen el formulario de envío, con la ciudad validada contra su
+departamento. Son de solo lectura desde la aplicación: no hay endpoint para crearlas.
+
+### Qué garantiza la base de datos
+
+Las reglas que importan están **en la base**, no solo en la aplicación. Una regla que solo
+existe en el código se puede saltar con una conexión directa o con un `INSERT` a mano.
+
+| Restricción | Por qué |
 |---|---|
-| `application/use-cases` | 100 % |
-| `domain` (entidades, enums, errores, búsqueda) | 100 % |
-| `infrastructure/persistence` | 95 % stmts · 93 % branches |
-| `interfaces/http` | Parcial: falta cubrir el controlador de catálogo |
-| **Global** | **78 % stmts · 85 % branches · 79 % funcs · 78 % lines** |
+| `chk_variants_stock_non_negative` | **El stock nunca puede quedar negativo.** Descontarlo va en una transacción, y esta es la red de seguridad |
+| `chk_orders_total_suma` | `total = subtotal + tax_amount + shipping_amount`. Los importes no se inventan |
+| `chk_order_items_line_total` | `line_total = unit_price × quantity` |
+| `chk_cart_items_quantity`, `chk_order_items_quantity` | Ninguna cantidad en cero o negativa |
+| `chk_variants_price_non_negative`, `chk_variants_weight_positive` | Precio y peso con sentido |
+| `chk_coffees_region`, `chk_coffees_process`, `chk_coffees_roast_level` | Enums cerrados: validados en el dominio **y** en la tabla |
+| `chk_users_role` | `CUSTOMER` o `ADMIN`, nada más |
+| `UQ_orders_order_number` | El número de orden es único y se genera con un prefijo y la fecha |
+| `UQ_deliveries_order_id` | Un envío por orden |
+| `chk_coffees_name_not_blank`, `chk_coffees_description_not_blank` | Ni nombres ni descripciones vacíos |
 
-El umbral que impone CI tiene dos partes: **69/81/70/69** (statements/branches/functions/lines) de
-forma global, y **90/88/85/92** para `infrastructure/persistence`, que es la capa que más se toca.
-Los dos están por debajo de lo que debería exigir un proyecto en producción, y subirlos es trabajo
-abierto: el hueco real no es un número, es que `CoffeeController` todavía no tiene ni un test, y es
-el único archivo de `src/` con 0 % de cobertura.
+### Índices
+
+Los que importan para consultas reales: `idx_orders_customer_id`, `idx_orders_user_id`,
+`idx_orders_status`, `idx_coffees_search_index`, `idx_coffee_variants_coffee_id` e
+`idx_coffee_variants_stock`. El del historial de órdenes es el que hace que
+`GET /api/orders` no recorra la tabla entera.
+
+### Otros detalles que no se ven en el diagrama
+
+- **`search_index`** se rellena en la aplicación con nombre, región, proceso, nivel de tueste
+  y notas de cata, todo sin acentos ni mayúsculas. Existe para que la búsqueda se pueda
+  probar sin depender de `unaccent`, que depende de la configuración regional del servidor.
+- **`price_from` no es una columna.** Es un método del dominio que devuelve el precio de la
+  variante más barata, o `null` si el café no tiene variantes activas. Se calcula al leer,
+  porque almacenarlo se desincronizaría en cuanto cambiara el precio de una variante.
+- **El catálogo se siembra con datos** mediante una migración, así que una base recién creada
+  ya tiene cafés con sus variantes y su stock.
+- **`raw_event` guarda el evento de la pasarela entero**, en `jsonb`, sin datos de tarjeta, y
+  quitando los campos que se parezca a un número de tarjeta **por nombre**. Es lo que permite
+  auditar una orden años después.
 
 ## Acceso desde Windows
 

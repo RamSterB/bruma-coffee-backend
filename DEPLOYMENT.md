@@ -1,8 +1,14 @@
 # Despliegue en AWS
 
-Guía para publicar **Bruma Coffee** en AWS (prueba técnica). Cubre una arquitectura moderna,
-económica y reproducible: backend en **ECS Fargate + ALB**, PostgreSQL en **RDS** y frontend
-estático en **S3 + CloudFront**.
+Guía para publicar **Bruma Coffee** en AWS. Es la que está montada: backend en **ECS
+Fargate + ALB**, PostgreSQL en **RDS**, frontend estático en **S3 + CloudFront** y la API
+en una **segunda distribución** que la sirve por HTTPS.
+
+| | |
+|---|---|
+| Tienda | <https://don1v5z5j5m3b.cloudfront.net> |
+| API | <https://d1f0emo6o8pkuu.cloudfront.net> |
+| Documentación de la API | <https://d1f0emo6o8pkuu.cloudfront.net/api/docs> |
 
 ## Arquitectura objetivo
 
@@ -164,14 +170,35 @@ producción es la del balanceador y no cambia.
 2. Crear **S3 bucket** (mismo nombre de dominio o uno dedicado) con:
    - **Public access bloqueado** (se sirve solo vía CloudFront).
    - **Bucket policy / OAC** para permitir solo CloudFront.
-3. **CloudFront distribution**:
+3. **CloudFront distribution de la tienda**:
    - **Origin**: el bucket S3 (con **Origin Access Control**).
-   - **Behavior**: `GET/HEAD`, cache `dist/`; `index.html` con TTL corto y sin cache (para SPA).
-   - **Error 403/404 → `/index.html`** (fallback de SPA con React Router).
-4. **Route 53** (dominio propio, opcional en la prueba técnica):
+   - **Behavior**: `GET/HEAD`, cache `CachingOptimized`; `index.html` subido con TTL corto y
+     los assets con TTL largo, porque su nombre lleva el hash del contenido.
+   - **Una CloudFront Function de *viewer-request*** que reescribe a `index.html` las rutas sin
+     extensión, que son las que decide el router del cliente.
+4. **CloudFront distribution para la API** (una segunda, y esto es lo importante):
+   - **Origin**: el ALB.
+   - **Política de caché: `CachingDisabled`.** Una respuesta con el carrito o el historial de
+     alguien **no se guarda ni un día en el CDN**, y con eso la respuesta llega al navegador
+     con su `Cache-Control` en vez de con el de CloudFront.
+   - **Sin función de reescritura ni regla de errores.** Si las tuviera, `/api/orders` se
+     convertiría en `index.html` y el cliente recibiría HTML donde espera JSON.
+
+   ### Por qué dos distribuciones y no una
+
+   Porque la API **necesita HTTPS** y el ALB no puede darla: un certificado del servicio de
+   certificados solo se emite para un dominio que se tenga, no para el nombre de un balanceador.
+   Con una sola distribución, la regla que convierte los 403 y 404 en `index.html` —el
+   método habitual para el *fallback* de una SPA— **se aplicaría también a las respuestas de
+   la API** y devolvería HTML con estado 200 donde el cliente espera JSON.
+
+5. **Route 53** (dominio propio, opcional):
    - Record `frontend` → CloudFront.
-   - Record `api` → ALB.
-5. Certificados **ACM** (us-east-1 para CloudFront; en la región del ALB para HTTPS).
+   - Record `api` → CloudFront.
+6. **Sin regla de errores en la distribución de la tienda.** La función de reescritura ya
+   resuelve el *fallback* y, además, es precisa: con la regla, un `.js` que no exista
+   devolvía la página de inicio con 200, y el navegador recibía HTML donde esperaba
+   JavaScript.
 
 ## 4. CI/CD (GitHub Actions, por repositorio)
 
@@ -290,5 +317,6 @@ jobs:
   Nginx. Más manual, menor costo inicial.
 - ECS **EC2 launch type** en vez de Fargate si necesitas reservar capacidad a menor precio.
 
-> Recomendación para la prueba técnica: **Fargate + RDS + S3/CloudFront** con la guía anterior.
+> Recomendación: **Fargate + RDS + S3/CloudFront** con la guía anterior, que es lo que está
+> montado. La diferencia con un diseño de una sola distribución está en el punto 4.
 > Es el patrón más valorado y se ajusta al free tier durante el desarrollo.
