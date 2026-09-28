@@ -152,8 +152,18 @@ describe('/orders e2e', () => {
 
   /** Sesion del administrador que crea la migracion de arranque. */
   const tokenDeAdmin = async (): Promise<string> => {
-    const email = process.env.SEED_ADMIN_EMAIL ?? 'admin@bruma-coffee.test'
-    const contrasena = process.env.SEED_ADMIN_PASSWORD ?? 'BrumaAdmin2026!'
+    // Sin valor por defecto a proposito: estas credenciales las fija `test/setup-env.ts`
+    // para la migracion y para los tests. Si aqui hubiera un valor inventado, volveria
+    // a pasar lo de antes: igual en local por casualidad y distinto en CI.
+    const email = process.env.SEED_ADMIN_EMAIL
+    const contrasena = process.env.SEED_ADMIN_PASSWORD
+
+    if (email === undefined || contrasena === undefined) {
+      throw new Error(
+        'Faltan SEED_ADMIN_EMAIL o SEED_ADMIN_PASSWORD. Las define test/setup-env.ts, ' +
+          'que es quien crea la cuenta de administrador de la base de pruebas.',
+      )
+    }
     const login = await request(server)
       .post('/api/auth/login')
       .send({ email, password: contrasena })
