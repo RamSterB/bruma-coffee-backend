@@ -2,35 +2,34 @@ import { describe, expect, it, beforeEach } from '@jest/globals'
 import request from 'supertest'
 import { Test } from '@nestjs/testing'
 import { INestApplication } from '@nestjs/common'
-import { DataSource } from 'typeorm'
+import { DatabaseHealthPort } from '../../domain/ports/database-health.port'
 
 /** El mismo prefijo que pone la aplicación real; duplicado a propósito, no se exporta. */
 const API_PREFIX = 'api'
 import { HealthController } from './health.controller'
 
 /**
- * Un doble de la conexión, con la respuesta que se le quiera dar.
+ * El port con la respuesta que se le quiera dar.
  *
- * Se prueba con un doble y no contra PostgreSQL a propósito: el comportamiento que
- * importa es **qué contesta el servicio cuando la base no responde**, y eso con la base
- * real solo se consigue rompiéndola, que no es una prueba que se pueda dejar escrita.
+ * Un doble y no PostgreSQL a propósito: lo que importa es **qué contesta el servicio
+ * cuando la base no responde**, y eso con la base real solo se consigue rompiéndola,
+ * que no es una prueba que se pueda dejar escrita. El adaptador contra la base real sí
+ * tiene su propia prueba de integración.
  */
-class ConexionFalsa {
-  constructor(private readonly responde: boolean) {}
+class BaseDeDatosFalsa extends DatabaseHealthPort {
+  constructor(private readonly responde: boolean) {
+    super()
+  }
 
-  async query(): Promise<unknown> {
-    if (!this.responde) {
-      throw new Error('ECONNREFUSED 10.0.1.20:5432')
-    }
-
-    return [[], []]
+  async isAlive(): Promise<boolean> {
+    return this.responde
   }
 }
 
 const montar = async (responde: boolean): Promise<INestApplication> => {
   const modulo = await Test.createTestingModule({
     controllers: [HealthController],
-    providers: [{ provide: DataSource, useValue: new ConexionFalsa(responde) }],
+    providers: [{ provide: DatabaseHealthPort, useValue: new BaseDeDatosFalsa(responde) }],
   }).compile()
 
   const app = modulo.createNestApplication()

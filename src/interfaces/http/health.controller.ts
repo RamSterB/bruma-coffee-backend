@@ -1,6 +1,13 @@
 import { Controller, Get, HttpException, HttpStatus, Module } from '@nestjs/common'
-import { ApiExcludeEndpoint, ApiOkResponse, ApiOperation } from '@nestjs/swagger'
-import { DataSource } from 'typeorm'
+import {
+  ApiOkResponse,
+  ApiOperation,
+  ApiServiceUnavailableResponse,
+  ApiTags,
+} from '@nestjs/swagger'
+import { DatabaseHealthPort } from '../../domain/ports/database-health.port'
+import { HealthResponseDto } from './dto/health-response.dto'
+import { TypeOrmDatabaseHealthAdapter } from '../../infrastructure/persistence/database-health.typeorm.adapter'
 
 /**
  * Lo que responde el balanceador para decidir si este contenedor recibe tráfico.
@@ -15,9 +22,10 @@ import { DataSource } from 'typeorm'
  * inténtalo con otro", que es literalmente lo que está pasando. Un 500 se lee como
  * "esta aplicación está rota".
  */
+@ApiTags('health')
 @Controller('health')
 export class HealthController {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(private readonly baseDeDatos: DatabaseHealthPort) {}
 
   // Sin `@UseGuards`: en este proyecto el guardia se pone ruta a ruta, así que una
   // ruta sin guard es pública. No hay decorador `@Public`, y no se inventa uno.
@@ -29,22 +37,28 @@ export class HealthController {
       'recibe tráfico. Devuelve 503 si la base de datos no responde, para que el ' +
       'contenedor quede fuera de rotación en vez de devolver errores a los clientes.',
   })
-  @ApiOkResponse({ description: 'El servicio y la base de datos responden' })
-  @ApiExcludeEndpoint()
-  async comprobar(): Promise<{ status: string }> {
-    try {
-      await this.dataSource.query('SELECT 1')
+  @ApiOkResponse({
+    type: HealthResponseDto,
+    description: 'El servicio y la base de datos responden',
+  })
+  @ApiServiceUnavailableResponse({
+    type: HealthResponseDto,
+    description: 'La base de datos no responde, así que el contenedor sale de rotación',
+  })
+  async comprobar(): Promise<HealthResponseDto> {
+    const viva = await this.baseDeDatos.isAlive()
 
+    if (viva) {
       return { status: 'ok' }
-    } catch {
-      // Se lanza en vez de "devolver un 503" porque un `@Get()` siempre responde 200: la
-      // única forma de que el código de salida sea 503 sin meter la respuesta a mano es
-      // lanzar. Así el cuerpo es el que dice qué pasa, no el genérico de Nest.
-      throw new HttpException(
-        { status: 'degradado', causa: 'base-de-datos' },
-        HttpStatus.SERVICE_UNAVAILABLE,
-      )
     }
+
+    // Se lanza en vez de "devolver un 503" porque un `@Get()` siempre responde 200: la
+    // única forma de que el código de salida sea 503 sin meter la respuesta a mano es
+    // lanzar. Así el cuerpo es el que dice qué pasa, no el genérico de Nest.
+    throw new HttpException(
+      { status: 'degradado', causa: 'base-de-datos' },
+      HttpStatus.SERVICE_UNAVAILABLE,
+    )
   }
 }
 
@@ -55,7 +69,6 @@ export class HealthController {
  */
 @Module({
   controllers: [HealthController],
-  providers: [],
-  exports: [],
+  providers: [{ provide: DatabaseHealthPort, useClass: TypeOrmDatabaseHealthAdapter }],
 })
 export class HealthModule {}
