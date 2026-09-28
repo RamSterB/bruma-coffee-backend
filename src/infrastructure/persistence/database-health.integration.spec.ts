@@ -39,7 +39,17 @@ describe('el chequeo de la base de datos contra PostgreSQL', () => {
     expect(await adapter.isAlive()).toBe(true)
   })
 
-  it('con la base caída responde que no, sin PROPAGAR el error', async () => {
+  it('aguanta que lo que se rechace no sea un Error', async () => {
+    // Alguien puede rechazar con una cadena, y `error.message` seria `undefined`. El
+    // registro tiene que decir algo util en ese caso, no "undefined".
+    const conRechazoRaro = new TypeOrmDatabaseHealthAdapter({
+      query: () => Promise.reject('se cayo el pool'),
+    } as unknown as DataSource)
+
+    expect(await conRechazoRaro.isAlive()).toBe(false)
+  })
+
+  it('con la base caída responde que no, sin propagar el error', async () => {
     const conConexionMala = new TypeOrmDatabaseHealthAdapter({
       query: () => Promise.reject(new Error('ECONNREFUSED 10.0.1.20:5432')),
     } as unknown as DataSource)
