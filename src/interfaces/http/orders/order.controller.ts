@@ -37,12 +37,14 @@ import {
   type CardGatewayConfig,
 } from '../../../config/card-gateway.config'
 import { GetOrderStatusUseCase } from '../../../application/use-cases/get-order-status.use-case'
+import { GetOrdersUseCase } from '../../../application/use-cases/get-orders.use-case'
 import type { AppError } from '../../../domain/errors/app-error'
 import type { Result } from '../../../domain/result'
 import type { Request } from 'express'
 import { AdminGuard, JwtAuthGuard, type SessionInfo } from '../auth/auth.guards'
 import {
   GatewayPublicConfigDto,
+  OrderListItemDto,
   CreateOrderDto,
   OrderResponseDto,
   OrderStatusDto,
@@ -57,6 +59,7 @@ export class OrderController {
   constructor(
     private readonly createOrder: CreateOrderUseCase,
     private readonly getOrderStatus: GetOrderStatusUseCase,
+    private readonly listOrders: GetOrdersUseCase,
     private readonly confirmPayment: ConfirmPaymentUseCase,
     private readonly reconcilePendingPayments: ReconcilePendingPaymentsUseCase,
     @Inject(CARD_GATEWAY_CONFIG) private readonly config: CardGatewayConfig,
@@ -116,6 +119,27 @@ export class OrderController {
         shipping: dto.shipping,
       }),
     )
+  }
+
+  /**
+   * El historial de compras de quien pregunta. Sin paginación de verdad: son cincuenta
+   * órdenes como tope, que para un catálogo de cafés es de sobra, y una pantalla de
+   * historial con miles de filas no lo es.
+   */
+  @Get('orders')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Lista las órdenes de la persona que pregunta',
+    description:
+      'Devuelve número de orden, estado, total, fecha y las líneas, de la más reciente a la más ' +
+      'antigua. El filtro es por usuario y va en la consulta, no en memoria. No incluye dirección ' +
+      'ni documento: la lista es para saber qué se pidió, no para volver a exponer datos personales.',
+  })
+  @ApiOkResponse({ type: [OrderListItemDto] })
+  @ApiUnauthorizedResponse({ description: 'Falta el token de acceso o no es válido' })
+  async listar(@Req() req: PeticionAutenticada): Promise<unknown> {
+    return this.desdoblar(await this.listOrders.execute(req.auth.userId))
   }
 
   @Get('orders/:id')

@@ -32,6 +32,13 @@ export class FakeOrderRepository implements OrderRepositoryPort {
     return [...this.ordenes.values()].find((orden) => orden.orderNumber === orderNumber) ?? null
   }
 
+  async findByUserId(userId: string, limit: number): Promise<Order[]> {
+    return [...this.ordenes.values()]
+      .filter((orden) => orden.userId === userId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit)
+  }
+
   async findDeliveryByOrderId(orderId: string): Promise<Delivery | null> {
     return this.envios.get(orderId) ?? null
   }

@@ -543,5 +543,98 @@ describe('/orders e2e', () => {
       await request(server).post('/api/orders/reconcile').expect(401)
     })
   })
+
+  describe('GET /api/orders', () => {
+    const crearOrden = async () =>
+      request(server)
+        .post('/api/orders')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          cardToken: 'tok_test_123',
+          email: 'comprador@ejemplo.co',
+          shipping: {
+            fullName: 'Persona Compradora',
+            documentNumber: '1098765434',
+            phone: '3001234567',
+            address: 'Carrera 7 con Calle 72',
+            city: 'Bogotá',
+            department: 'Cundinamarca',
+          },
+        })
+        .expect(201)
+
+    it('devuelve las órdenes de quien pregunta, con su número y su total', async () => {
+      await crearOrden()
+
+      const respuesta = await request(server)
+        .get('/api/orders')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200)
+
+      const ordenes = respuesta.body as Record<string, unknown>[]
+      expect(ordenes).toHaveLength(1)
+      expect(ordenes[0]?.orderNumber).toMatch(/^BC-\d{8}-\d{4}$/)
+      expect(ordenes[0]?.total).toBeGreaterThan(0)
+      expect(ordenes[0]?.items).toHaveLength(1)
+    })
+
+    it('NO devuelve las órdenes de otra persona, y se comprueba explícitamente', async () => {
+      await crearOrden()
+
+      await request(server)
+        .post('/api/auth/register')
+        .send({ email: 'otra@ejemplo.co', password: CONTRASENA, fullName: 'Otra Persona' })
+        .expect(201)
+      const login = await request(server)
+        .post('/api/auth/login')
+        .send({ email: 'otra@ejemplo.co', password: CONTRASENA })
+        .expect(200)
+      const otroToken = (login.body as { accessToken: string }).accessToken
+
+      const respuesta = await request(server)
+        .get('/api/orders')
+        .set('Authorization', `Bearer ${otroToken}`)
+        .expect(200)
+
+      // La otra persona no tiene compras, así que su lista está vacía. Si el filtro
+      // fallara, aquí aparecería el número de orden y el total de otra persona.
+      expect(respuesta.body).toEqual([])
+    })
+
+    it('devuelve una lista vacía, y no un error, si no hay compras', async () => {
+      const respuesta = await request(server)
+        .get('/api/orders')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200)
+
+      expect(respuesta.body).toEqual([])
+    })
+
+    it('no se puede pedir sin sesión', async () => {
+      await request(server).get('/api/orders').expect(401)
+    })
+
+    it('no lleva la dirección ni el documento de la persona', async () => {
+      await crearOrden()
+
+      const respuesta = await request(server)
+        .get('/api/orders')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200)
+
+      const [orden] = respuesta.body as Record<string, unknown>[]
+      // La lista es para saber qué se pidió. Volver a exponer el documento en una
+      // segunda pantalla no aporta nada y amplía lo que se puede ver por error.
+      expect(Object.keys(orden ?? {}).sort()).toEqual([
+        'createdAt',
+        'id',
+        'items',
+        'orderNumber',
+        'paymentStatus',
+        'status',
+        'total',
+      ])
+    })
+  })
 })
 

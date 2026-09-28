@@ -384,4 +384,65 @@ describe('persistencia de órdenes', () => {
       ).toHaveLength(0)
     })
   })
+
+  describe('el historial de una persona', () => {
+    it('devuelve solo las suyas, de la más reciente a la más antigua', async () => {
+      await guardarOrden(2, 10)
+      const otra = await orders.nextOrderNumber(new Date('2026-09-26T10:00:00.000Z'))
+      await orders.save(
+        Order.create({
+          id: randomUUID(),
+          orderNumber: otra,
+          userId,
+          customerId,
+          customer: { name: 'Compradora', documentNumber: '1098765434', phone: '3001234567' },
+          shipping: {
+            fullName: 'Compradora',
+            documentNumber: '1098765434',
+            phone: '3001234567',
+            address: 'Otra calle',
+            city: 'Bogotá',
+            department: 'Cundinamarca',
+          },
+          items: [
+            {
+              variantId,
+              coffeeName: 'Caturra',
+              weightGrams: 250,
+              unitPrice: 42000,
+              quantity: 1,
+              lineTotal: 42000,
+            },
+          ],
+          subtotal: 42000,
+          taxAmount: 7980,
+          shippingAmount: 10000,
+          total: 59980,
+          createdAt: new Date('2026-09-26T10:00:00.000Z'),
+        }),
+      )
+
+      const suyas = await orders.findByUserId(userId, 50)
+
+      expect(suyas).toHaveLength(2)
+      expect(suyas[0]?.orderNumber).toBe(otra)
+    })
+
+    it('no devuelve ni una orden de otra persona', async () => {
+      await guardarOrden(2, 10)
+      // El aislamiento se comprueba con datos de verdad en la base, no con un doble:
+      // el filtro va en el WHERE y eso es justo lo que hay que verificar.
+      const intrusion = await orders.findByUserId('99999999-9999-9999-9999-999999999999', 50)
+
+      expect(intrusion).toHaveLength(0)
+    })
+
+    it('respeta el límite pedido', async () => {
+      await guardarOrden(2, 10)
+
+      const una = await orders.findByUserId(userId, 1)
+
+      expect(una).toHaveLength(1)
+    })
+  })
 })

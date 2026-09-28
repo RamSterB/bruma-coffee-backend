@@ -26,6 +26,15 @@ export abstract class OrderRepositoryPort {
 
   abstract findByOrderNumber(orderNumber: string): Promise<Order | null>
 
+  /**
+   * Las órdenes de una persona, de la más reciente a la más antigua.
+   *
+   * El filtro va aquí y no en un `if` del caso de uso: la diferencia entre "traer las
+   * suyas" y "traer todas y quitar las de otros" es justo lo que se rompe en cuanto
+   * alguien añade un campo y olvida filtrarlo.
+   */
+  abstract findByUserId(userId: string, limit: number): Promise<Order[]>
+
   /** El envío de la orden, o null si todavía no se creó porque el pago no se aprobó. */
   abstract findDeliveryByOrderId(orderId: string): Promise<Delivery | null>
 

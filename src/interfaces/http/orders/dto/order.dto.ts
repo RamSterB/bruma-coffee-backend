@@ -180,3 +180,43 @@ export class GatewayPublicConfigDto {
   })
   environment!: 'sandbox' | 'production' | null
 }
+
+export class OrderListLineDto {
+  @ApiProperty()
+  variantId!: string
+
+  @ApiProperty()
+  coffeeName!: string
+
+  @ApiProperty({ nullable: true, type: Number })
+  weightGrams!: number | null
+
+  @ApiProperty()
+  quantity!: number
+
+  @ApiProperty()
+  lineTotal!: number
+}
+
+export class OrderListItemDto {
+  @ApiProperty()
+  id!: string
+
+  @ApiProperty()
+  orderNumber!: string
+
+  @ApiProperty({ enum: ['PENDING', 'PAID', 'FAILED', 'CANCELLED'] })
+  status!: string
+
+  @ApiProperty({ enum: ['PENDING', 'APPROVED', 'DECLINED', 'ERROR', 'CANCELLED'] })
+  paymentStatus!: string
+
+  @ApiProperty()
+  total!: number
+
+  @ApiProperty()
+  createdAt!: string
+
+  @ApiProperty({ type: [OrderListLineDto] })
+  items!: OrderListLineDto[]
+}
