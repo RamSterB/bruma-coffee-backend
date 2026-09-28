@@ -64,6 +64,8 @@ export class FakeCoffeeRepository implements CoffeeRepositoryPort {
   public lastFilters: CoffeeFilters | null = null
   public lastVariantIds: string[] | null = null
   public variantsByIds: VariantWithCoffee[] = []
+  /** Qué café es dueño de cada variante, para las búsquedas por id de variante. */
+  public cafeDeLaVariante: Record<string, string> = {}
 
   constructor(
     private readonly result: PaginatedCoffees = buildPage([], 0),
@@ -77,6 +79,10 @@ export class FakeCoffeeRepository implements CoffeeRepositoryPort {
 
   async findById(id: string): Promise<Coffee | null> {
     return this.byId?.id === id ? this.byId : null
+  }
+
+  async findCoffeeIdByVariantId(variantId: string): Promise<string | null> {
+    return this.cafeDeLaVariante[variantId] ?? null
   }
 
   async findVariantsByIds(ids: string[]): Promise<VariantWithCoffee[]> {

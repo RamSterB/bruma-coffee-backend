@@ -83,6 +83,19 @@ export class CoffeeTypeOrmRepository implements CoffeeRepositoryPort {
    * join al café para el nombre, en vez de un id por consulta. Los filtros de
    * actividad van en SQL: lo que no se puede comprar no se devuelve.
    */
+  async findCoffeeIdByVariantId(variantId: string): Promise<string | null> {
+    const variante = await this.variantRepository
+      .createQueryBuilder('variant')
+      .innerJoin('variant.coffee', 'coffee')
+      .select('coffee.id', 'coffeeId')
+      .where('variant.id = :variantId', { variantId })
+      .andWhere('variant.is_active = true')
+      .andWhere('coffee.is_active = true')
+      .getRawOne<{ coffeeId: string }>()
+
+    return variante?.coffeeId ?? null
+  }
+
   async findVariantsByIds(ids: string[]): Promise<VariantWithCoffee[]> {
     if (ids.length === 0) {
       return []

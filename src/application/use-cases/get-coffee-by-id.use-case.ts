@@ -17,10 +17,22 @@ export class GetCoffeeByIdUseCase {
 
     const coffee = await this.coffeeRepository.findById(coffeeId)
 
-    if (coffee === null) {
-      throw new CoffeeNotFoundError(coffeeId)
+    if (coffee !== null) {
+      return coffee
     }
 
-    return coffee
+    // Si no es un café, puede ser una variante: el enlace de "ver el café" que aparece tras
+    // pagar solo conoce el id de la variante, porque el pedido no guarda el del café.
+    const cafeDeLaVariante = await this.coffeeRepository.findCoffeeIdByVariantId(coffeeId)
+
+    if (cafeDeLaVariante !== null) {
+      const cafeDeLaVarianteId = await this.coffeeRepository.findById(cafeDeLaVariante)
+
+      if (cafeDeLaVarianteId !== null) {
+        return cafeDeLaVarianteId
+      }
+    }
+
+    throw new CoffeeNotFoundError(coffeeId)
   }
 }

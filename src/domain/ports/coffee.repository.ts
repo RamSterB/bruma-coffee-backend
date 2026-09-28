@@ -39,6 +39,18 @@ export abstract class CoffeeRepositoryPort {
   abstract findById(id: string): Promise<Coffee | null>
 
   /**
+   * Qué café es dueño de una variante, o `null` si esa variante no existe o no se puede
+   * comprar.
+   *
+   * Existe por un motivo concreto: **el resultado de un pago solo trae el id de la
+   * variante**, porque el pedido guarda el nombre del café como copia del momento en que
+   * se compró y no su id, para que el pedido sobreviva aunque el café desaparezca del
+   * catálogo. El enlace de "ver el café" llega entonces con un id de variante, y sin esta
+   * búsqueda llevaría a una página que no encuentra nada.
+   */
+  abstract findCoffeeIdByVariantId(variantId: string): Promise<string | null>
+
+  /**
    * Resuelve varias variantes de una vez, que es como las pide el carrito.
    * Solo devuelve variantes activas de cafés activos: lo que no se puede
    * comprar no viene. Los ids desconocidos no son un error, sencillamente no

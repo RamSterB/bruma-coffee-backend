@@ -1,10 +1,7 @@
 import { Controller, Get, NotFoundException, Param, ParseUUIDPipe } from '@nestjs/common'
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { GeographyRepositoryPort } from '../../../domain/ports/geography.repository'
-import {
-  ListCitiesResponseDto,
-  ListDepartmentsResponseDto,
-} from './dto/geography.dto'
+import { ListCitiesResponseDto, ListDepartmentsResponseDto } from './dto/geography.dto'
 
 /**
  * La lista de departamentos y ciudades, pública a propósito.

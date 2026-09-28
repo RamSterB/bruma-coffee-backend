@@ -324,18 +324,39 @@ describe('CoffeeTypeOrmRepository contra PostgreSQL', () => {
     })
   })
 
+  /** Siembra un café y devuelve también una de sus variantes, que es lo que se busca. */
+  const cafeYVariantDe = async (coffeeName: string, overrides = {}) => {
+    const coffee = await seedCoffee(dataSource, aVisibleCoffee({ name: coffeeName, ...overrides }))
+    const variant = await dataSource
+      .getRepository(CoffeeVariantTypeOrmEntity)
+      .findOneOrFail({ where: { coffeeId: coffee.id } })
+
+    return { coffee, variant }
+  }
+
+  describe('findCoffeeIdByVariantId', () => {
+    it('devuelve el café dueño de la variante', async () => {
+      const { coffee, variant } = await cafeYVariantDe('Dueño')
+
+      expect(await repository.findCoffeeIdByVariantId(variant.id)).toBe(coffee.id)
+    })
+
+    it('devuelve null si la variante no existe', async () => {
+      expect(await repository.findCoffeeIdByVariantId(UNKNOWN_ID)).toBeNull()
+    })
+
+    it('devuelve null si el café está inactivo, porque no se puede comprar', async () => {
+      const { variant } = await cafeYVariantDe('Oculto', { isActive: false })
+
+      expect(await repository.findCoffeeIdByVariantId(variant.id)).toBeNull()
+    })
+  })
+
   describe('findVariantsByIds', () => {
     const variantIdOf = async (coffeeName: string, overrides = {}): Promise<string> => {
-      const coffee = await seedCoffee(
-        dataSource,
-        aVisibleCoffee({ name: coffeeName, ...overrides }),
-      )
+      const { variant } = await cafeYVariantDe(coffeeName, overrides)
 
-      return (
-        await dataSource.getRepository(CoffeeVariantTypeOrmEntity).findOneOrFail({
-          where: { coffeeId: coffee.id },
-        })
-      ).id
+      return variant.id
     }
 
     it('devuelve la variante con el nombre de su café', async () => {
