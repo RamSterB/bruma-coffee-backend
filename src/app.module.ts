@@ -9,6 +9,7 @@ import { databaseConfig } from './config/database.config'
 import { AuthModule } from './config/auth.module'
 import { CartModule } from './config/cart.module'
 import { GeographyModule } from './config/geography.module'
+import { PaymentModule } from './config/payment.module'
 import { validateEnv } from './config/env.validation'
 import { PersistenceModule } from './infrastructure/persistence/persistence.module'
 import { CoffeeController } from './interfaces/http/coffee.controller'
@@ -26,6 +27,7 @@ import { AppExceptionFilter } from './interfaces/http/filters/app-exception.filt
     AuthModule,
     CartModule,
     GeographyModule,
+    PaymentModule,
   ],
   controllers: [CoffeeController, VariantsController],
   providers: [

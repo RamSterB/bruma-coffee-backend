@@ -18,3 +18,13 @@ import { TEST_CONNECTION_ENV } from '../src/testing/test-database'
 
 Object.assign(process.env, TEST_CONNECTION_ENV)
 process.env.JWT_SECRET = 'secreto-de-pruebas-e2e-suficientemente-largo'
+
+// La pasarela tambien valida el entorno al importarse el modulo, asi que sus
+// llaves tienen que existir aqui igual que el secreto de sesion. Son llaves de
+// mentira con el prefijo de sandbox: la validacion solo mira el prefijo, y
+// ningun test de esta suite sale a la red.
+process.env.CARD_GATEWAY_PUBLIC_KEY = 'pub_test_llave-de-pruebas'
+process.env.CARD_GATEWAY_PRIVATE_KEY = 'prv_test_llave-de-pruebas'
+process.env.CARD_GATEWAY_EVENTS_SECRET = 'test_events_secreto-de-pruebas'
+process.env.CARD_GATEWAY_INTEGRITY_SECRET = 'test_integrity_secreto-de-pruebas'
+

@@ -16,6 +16,12 @@ export interface PricedLine extends SummableLine {
   variantId: string
   coffeeName: string
   subtotal: number
+  /**
+   * Peso del empaque, y no un dato de precio: se lleva en la linea porque la orden
+   * guarda una copia de lo que se entrega, y el peso forma parte de eso. Es `null`
+   * cuando el catálogo no lo tiene, y la orden lo acepta así en vez de inventar 0.
+   */
+  weightGrams: number | null
 }
 
 export interface OrderSummaryTotals {
@@ -94,7 +100,11 @@ export class OrderSummary {
   ) {}
 
   static create(
-    lineas: (SummableLine & { variantId: string; coffeeName: string })[],
+    lineas: (SummableLine & {
+      variantId: string
+      coffeeName: string
+      weightGrams?: number | null
+    })[],
     config: PricingConfig,
   ): OrderSummary {
     const utilizables = lineas.filter(esUsable)
@@ -110,6 +120,7 @@ export class OrderSummary {
         unitPrice: linea.unitPrice,
         quantity: linea.quantity,
         subtotal: linea.unitPrice * linea.quantity,
+        weightGrams: linea.weightGrams ?? null,
       })),
       totales.subtotal,
       totales.tax,

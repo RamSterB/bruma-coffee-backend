@@ -87,7 +87,10 @@ describe('/cart e2e', () => {
 
   beforeEach(async () => {
     await dataSource.query(
-      'TRUNCATE cart_items, carts, refresh_tokens, users, customers RESTART IDENTITY CASCADE',
+      // Las tablas de la orden entran también: las suites de extremo a extremo
+      // comparten la misma base, y sin esto una orden creada en otra prueba se
+      // cuela aquí y hace fallar un test que no va de pagos.
+      'TRUNCATE deliveries, payments, order_items, orders, cart_items, carts, refresh_tokens, users, customers RESTART IDENTITY CASCADE',
     )
     variantId = await crearVariante('Café del Carrito', '42000', 10)
     otraVariantId = await crearVariante('Café Cortado', '35000', 3)
@@ -658,14 +661,13 @@ describe('/cart e2e', () => {
         .send(envio)
         .expect(200)
 
-      // La orden ni siquiera existe todavia: se crea al confirmar la compra. Lo
-      // que se comprueba aqui es que esta llamada no deja nada escrito, ni en una
-      // orden ni en ningun otro sitio.
+      // La orden se crea al confirmar la compra, no al cotizar. Lo que se comprueba
+      // aqui es que esta llamada no deja ninguna fila escrita.
       expect(respuesta.body.persisted).toBe(false)
-      const [{ total }] = await dataSource.query(
-        "SELECT COUNT(*)::int AS total FROM information_schema.tables WHERE table_name = 'orders'",
-      )
-      expect(total).toBe(0)
+      const [{ ordenes }] = await dataSource.query('SELECT COUNT(*)::int AS ordenes FROM orders')
+      expect(ordenes).toBe(0)
+      const [{ envios }] = await dataSource.query('SELECT COUNT(*)::int AS envios FROM deliveries')
+      expect(envios).toBe(0)
     })
 
     it('exige token', async () => {
