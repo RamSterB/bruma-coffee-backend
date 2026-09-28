@@ -27,4 +27,7 @@ process.env.CARD_GATEWAY_PUBLIC_KEY = 'pub_test_llave-de-pruebas'
 process.env.CARD_GATEWAY_PRIVATE_KEY = 'prv_test_llave-de-pruebas'
 process.env.CARD_GATEWAY_EVENTS_SECRET = 'test_events_secreto-de-pruebas'
 process.env.CARD_GATEWAY_INTEGRITY_SECRET = 'test_integrity_secreto-de-pruebas'
+// La URL base es obligatoria y no tiene valor por defecto, asi que el entorno de
+// pruebas tiene que declararla. Un host de ejemplo vale: aqui no se llama a nadie.
+process.env.CARD_GATEWAY_BASE_URL = 'https://api.pruebas.proveedor.example/v1'
 
