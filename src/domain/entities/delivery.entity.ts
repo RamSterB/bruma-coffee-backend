@@ -1,6 +1,6 @@
 export type DeliveryStatus = 'PENDING' | 'ASSIGNED' | 'IN_TRANSIT' | 'DELIVERED' | 'CANCELLED'
 
-/** Envío, no dirección: la dirección es copia de la orden (ADR-016). */
+/** Envío, no dirección: la dirección es copia de la orden y no se guarda dos veces. */
 export interface Delivery {
   id: string
   orderId: string

@@ -11,7 +11,8 @@ import { OrderTypeOrmEntity } from './order.typeorm.entity'
 
 /**
  * Solo se guarda el **token** que devuelve la tokenización del navegador, nunca el
- * número de la tarjeta: el número no pasa por este servidor (ADR-006).
+ * número de la tarjeta: el número no pasa por este servidor, porque la tarjeta se
+ * tokeniza en el navegador.
  *
  * El UNIQUE de (provider, provider_reference) lo crea la migración, no el decorador,
  * porque es la pieza de la que depende la idempotencia del evento.

@@ -34,7 +34,8 @@ export interface WebhookHeaders {
 /**
  * El port de la pasarela. El dominio solo sabe esto: que hay alguien que
  * autoriza un pago y que avisa de cómo acabó. Ni la URL, ni las llaves, ni el
- * nombre del proveedor (ADR-001 y ADR-005).
+ * nombre del proveedor. Cambiar de proveedor es cambiar este adaptador, y nada
+ * más: es lo que mantiene el dominio ignorante de la infraestructura.
  */
 export abstract class CardGateway {
   /**

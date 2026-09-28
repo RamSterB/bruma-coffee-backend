@@ -1,9 +1,10 @@
 import { validateEnv } from './env.validation'
 
 /**
- * Las cuatro llaves de la pasarela son obligatorias: sin ellas no se puede cobrar y
- * no hay adaptador simulado (ADR-005). Un entorno con solo el secreto de sesion es un
- * entorno incompleto, y arrancar a medias seria fingir que la app esta sana.
+ * Las cuatro llaves de la pasarela son obligatorias: sin ellas no se puede cobrar, y
+ * como el adaptador habla con el proveedor de verdad, no hay forma de cobrar de otro
+ * modo. Un entorno con solo el secreto de sesion es un entorno incompleto, y arrancar a
+ * medias seria fingir que la app esta sana.
  */
 const pasarela = {
   CARD_GATEWAY_PUBLIC_KEY: 'pub_test_una',

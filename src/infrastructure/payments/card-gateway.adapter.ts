@@ -73,7 +73,7 @@ const aEstado = (valor: string | undefined): GatewayPaymentStatus =>
 /**
  * Adaptador de la pasarela de pago. Es el **único** lugar del código donde se
  * conoce el proveedor: la URL, las llaves, la firma y el formato de la respuesta.
- * Todo lo demás habla con el port (ADR-001 y ADR-005).
+ * Todo lo demás habla con el port.
  */
 export class CardGatewayAdapter extends CardGateway {
   constructor(

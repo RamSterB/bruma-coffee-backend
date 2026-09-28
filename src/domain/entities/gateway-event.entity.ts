@@ -6,7 +6,7 @@ import type { Delivery } from '../../domain/entities/delivery.entity'
  * El evento se guarda entero para poder auditar una orden años después, pero
  * **sin datos de tarjeta**: si la pasarela mandara el número, se escribiría en la
  * base de datos y con él en una copia de seguridad, y "la pasarela no lo manda" no
- * es una garantía que se pueda dar (RNF-01.20).
+ * es una garantía que se pueda dar.
  *
  * Se quita por nombre de campo en vez de por forma de número, porque un PAN
  * válido de 16 dígitos se parece demasiado a un identificador de transacción de

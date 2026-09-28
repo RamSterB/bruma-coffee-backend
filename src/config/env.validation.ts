@@ -10,8 +10,9 @@
  *   secreto. Sin el, la aplicacion firmaria con una llave vacia y devolveria 401 a
  *   todo el mundo sin decir por que: un fallo con cuatro causas posibles y ninguna
  *   obvia.
- * - La **pasarela de pago**: las cuatro llaves. No hay adaptador simulado
- *   (ADR-005), asi que sin ellas no hay forma de cobrar.
+ * - La **pasarela de pago**: las cuatro llaves. No hay adaptador simulado, el
+ *   adaptador habla con el proveedor de verdad, asi que sin ellas no hay forma de
+ *   cobrar.
  */
 import {
   cardGatewayConfigFrom,

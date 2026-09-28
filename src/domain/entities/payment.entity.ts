@@ -3,7 +3,8 @@ export type GatewayPaymentStatus = 'PENDING' | 'APPROVED' | 'DECLINED' | 'ERROR'
 /**
  * Un intento de pago. Se guarda el **token** que devuelve la tokenización del
  * navegador y la referencia de la pasarela, nunca el número de la tarjeta: el
- * número no llega aquí porque no pasa por este servidor (ADR-006).
+ * número no llega aquí porque no pasa por este servidor: la tarjeta se tokeniza en
+ * el navegador y de aquí solo baja el token.
  */
 export interface Payment {
   id: string
