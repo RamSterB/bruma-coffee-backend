@@ -1,0 +1,16 @@
+# Lo que no debe entrar en la imagen. Sin esto, el `.env` de desarrollo viaja dentro de
+# la imagen y los secretos de alguien acaban en un repositorio de Docker Hub.
+.env
+.env.*
+!.env.example
+node_modules
+dist
+coverage
+coverage-e2e
+.git
+.gitignore
+.github
+.devcontainer
+*.log
+README.md
+docs
