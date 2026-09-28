@@ -192,6 +192,17 @@ export class TypeOrmOrderRepository implements OrderRepositoryPort {
             .execute()
         }
 
+        // El carrito se vacia **aqui**, y no al crear la orden. Si se vaciara al
+        // crear, un pago rechazado dejaria a quien compra sin su carrito y tendria que
+        // armar la compra entera otra vez. Y si no se vaciara nunca, veria los mismos
+        // cafes en el cajon despues de pagar, y el siguiente intento de pago crearia
+        // una segunda orden con lo mismo.
+        await manejador.query(
+          'DELETE FROM cart_items WHERE cart_id IN (SELECT id FROM carts WHERE user_id = $1)',
+          [fila.userId],
+        )
+        await manejador.query('DELETE FROM carts WHERE user_id = $1', [fila.userId])
+
         const creado = manejador.getRepository(DeliveryTypeOrmEntity).create({
           orderId: fila.id,
           status: 'PENDING',

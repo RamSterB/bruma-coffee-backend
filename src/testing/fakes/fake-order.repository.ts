@@ -13,6 +13,8 @@ import type {
  */
 export class FakeOrderRepository implements OrderRepositoryPort {
   private readonly ordenes = new Map<string, Order>()
+  /** Carritos por usuario, para comprobar que se vacian al confirmar el pago. */
+  public readonly carritos = new Map<string, string[]>()
   private readonly envios = new Map<string, Delivery>()
   public readonly stock = new Map<string, number>()
   public readonly pagosAplicados: PaymentOutcome[] = []
@@ -110,6 +112,10 @@ export class FakeOrderRepository implements OrderRepositoryPort {
       return { applied: true, order: actualizada, delivery: null, shortage: [] }
     }
 
+    // Aqui se vacia el carrito, por el mismo motivo y en el mismo momento que en el
+    // adaptador real: solo cuando el pago se aprueba.
+    this.carritos.delete(order.userId)
+
     const delivery: Delivery = {
       id: `envio-${order.id}`,
       orderId: order.id,
@@ -124,6 +130,11 @@ export class FakeOrderRepository implements OrderRepositoryPort {
     this.envios.set(order.id, delivery)
 
     return { applied: true, order: actualizada, delivery, shortage: [] }
+  }
+
+  /** Registra lo que hay en el carrito de un usuario, como ids de variante. */
+  registrarCarrito(userId: string, variantIds: string[]): void {
+    this.carritos.set(userId, [...variantIds])
   }
 
   /** Vacía el almacén. Para probar el caso en que lo que se busca ya no está. */

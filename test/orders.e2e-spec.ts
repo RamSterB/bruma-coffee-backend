@@ -636,5 +636,66 @@ describe('/orders e2e', () => {
       ])
     })
   })
-})
+  describe('el carrito despues de pagar', () => {
+    it('queda vacio cuando el pago se aprueba, en la misma transaccion que el stock', async () => {
+      // Pagar y que el carrito siga lleno es lo primero que nota quien compra: ve
+      // los mismos cafes otra vez y no sabe si se cobró dos veces. Y si no se
+      // vacia, el siguiente intento de pago crea una segunda orden con lo mismo.
+      await request(server)
+        .post('/api/orders')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          cardToken: 'tok_test_123',
+          email: 'comprador@ejemplo.co',
+          shipping: {
+            fullName: 'Persona Compradora',
+            documentNumber: '1098765434',
+            phone: '3001234567',
+            address: 'Carrera 7 con Calle 72',
+            city: 'Bogotá',
+            department: 'Cundinamarca',
+          },
+        })
+        .expect(201)
 
+      await request(server).post('/api/webhooks/card-gateway').send(eventoDe('APPROVED')).expect(200)
+
+      const carrito = await request(server)
+        .get('/api/cart')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200)
+
+      expect((carrito.body as { items: unknown[] }).items).toHaveLength(0)
+    })
+
+    it('el carrito sigue intacto si el pago se rechaza, para poder reintentar', async () => {
+      await request(server)
+        .post('/api/orders')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          cardToken: 'tok_test_123',
+          email: 'comprador@ejemplo.co',
+          shipping: {
+            fullName: 'Persona Compradora',
+            documentNumber: '1098765434',
+            phone: '3001234567',
+            address: 'Carrera 7 con Calle 72',
+            city: 'Bogotá',
+            department: 'Cundinamarca',
+          },
+        })
+        .expect(201)
+
+      await request(server).post('/api/webhooks/card-gateway').send(eventoDe('DECLINED')).expect(200)
+
+      const carrito = await request(server)
+        .get('/api/cart')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200)
+
+      // Vaciar el carrito al rechazar tiraría la compra de alguien a la que solo se
+      // le rechaza la tarjeta, y tendría que volver a armarla entera.
+      expect((carrito.body as { items: unknown[] }).items).toHaveLength(1)
+    })
+  })
+})
