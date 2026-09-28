@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/glo
 import { resetTestDatabase } from '../../testing/test-database'
 import { CreateAccountTables1759000000000 } from '../../migrations/1759000000000-CreateAccountTables'
 import { CreateCartTables1759100000000 } from '../../migrations/1759100000000-CreateCartTables'
+import { CreateOrderTables1759300000000 } from '../../migrations/1759300000000-CreateOrderTables'
 import { UserRole } from '../../domain/enums/user-role.enum'
 import { CustomerTypeOrmEntity } from './customer.typeorm.entity'
 import { UserTypeOrmEntity } from './user.typeorm.entity'
@@ -55,7 +56,9 @@ describe('restricciones del esquema de cuentas', () => {
   })
 
   beforeEach(async () => {
-    await dataSource.query('TRUNCATE refresh_tokens, users, customers RESTART IDENTITY CASCADE')
+    await dataSource.query(
+      'TRUNCATE deliveries, payments, order_items, orders, refresh_tokens, users, customers RESTART IDENTITY CASCADE',
+    )
   })
 
   describe('customers', () => {
@@ -187,6 +190,10 @@ describe('deshacer el esquema de cuentas', () => {
       // seguiría apuntando a users y el DROP de users fallaría: el test tiene que
       // reproducir el orden real de un rollback, no uno inventado.
       await new CreateCartTables1759100000000().down(queryRunner)
+      // Las órdenes van después del carrito en el historial y también apuntan a
+      // users y a coffee_variants, así que un rollback real las deshace antes. Sin
+      // este paso, el DROP de customers fallaría por ellas.
+      await new CreateOrderTables1759300000000().down(queryRunner)
 
       await down.down(queryRunner)
 

@@ -51,6 +51,9 @@ import { CartController } from '../interfaces/http/cart/cart.controller'
     ClearCartUseCase,
     MergeLocalCartUseCase,
   ],
-  exports: [CartRepositoryPort],
+  // El resumen se exporta porque el módulo de pago lo necesita: el total que se
+  // cobra lo calcula el carrito, y el caso de uso de la orden no debe recalcularlo
+  // por su cuenta, porque entonces los dos podrían dejar de coincidir.
+  exports: [CartRepositoryPort, GetOrderSummaryUseCase],
 })
 export class CartModule {}

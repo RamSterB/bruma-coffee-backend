@@ -30,6 +30,7 @@ export class GetOrderSummaryUseCase {
           coffeeName: item.coffeeName ?? 'Café',
           unitPrice: item.price,
           quantity: item.quantity,
+          weightGrams: item.weightGrams,
         })),
       this.pricing,
     )

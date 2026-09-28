@@ -14,6 +14,11 @@ import { CreateCatalogTables1758800000000 } from '../migrations/1758800000000-Cr
 import { AddCoffeeSearchIndex1758900002000 } from '../migrations/1758900002000-AddCoffeeSearchIndex'
 import { CreateCartTables1759100000000 } from '../migrations/1759100000000-CreateCartTables'
 import { CreateDepartmentsAndCities1759200000000 } from '../migrations/1759200000000-CreateDepartmentsAndCities'
+import { CreateOrderTables1759300000000 } from '../migrations/1759300000000-CreateOrderTables'
+import { OrderTypeOrmEntity } from '../infrastructure/persistence/order.typeorm.entity'
+import { OrderItemTypeOrmEntity } from '../infrastructure/persistence/order-item.typeorm.entity'
+import { PaymentTypeOrmEntity } from '../infrastructure/persistence/payment.typeorm.entity'
+import { DeliveryTypeOrmEntity } from '../infrastructure/persistence/delivery.typeorm.entity'
 
 /**
  * Infraestructura para los tests de integración contra PostgreSQL real.
@@ -92,6 +97,10 @@ export const testDataSourceOptions = (database: string = TEST_DATABASE) => ({
     CartItemTypeOrmEntity,
     DepartmentTypeOrmEntity,
     CityTypeOrmEntity,
+    OrderTypeOrmEntity,
+    OrderItemTypeOrmEntity,
+    PaymentTypeOrmEntity,
+    DeliveryTypeOrmEntity,
   ],
   // El esquema lo crean las mismas migraciones que en producción, pero
   // importadas una a una: el glob de MIGRATIONS_GLOB depende de __dirname,
@@ -104,6 +113,7 @@ export const testDataSourceOptions = (database: string = TEST_DATABASE) => ({
     SeedAccounts1759000001000,
     CreateCartTables1759100000000,
     CreateDepartmentsAndCities1759200000000,
+    CreateOrderTables1759300000000,
   ],
   migrationsTableName: 'schema_migrations',
   logging: false,

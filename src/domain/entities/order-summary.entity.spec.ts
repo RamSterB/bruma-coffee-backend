@@ -118,8 +118,24 @@ describe('OrderSummary', () => {
     )
 
     expect(resumen.lines).toEqual([
-      { variantId: 'v1', coffeeName: 'Nariño', unitPrice: 42000, quantity: 2, subtotal: 84000 },
+      {
+        variantId: 'v1',
+        coffeeName: 'Nariño',
+        unitPrice: 42000,
+        quantity: 2,
+        subtotal: 84000,
+        weightGrams: null,
+      },
     ])
+  })
+
+  it('lleva el peso del empaque cuando el catálogo lo tiene, porque la orden lo copia', () => {
+    const resumen = OrderSummary.create(
+      [{ variantId: 'v1', coffeeName: 'Nariño', unitPrice: 42000, quantity: 2, weightGrams: 250 }],
+      CONFIG,
+    )
+
+    expect(resumen.lines[0]?.weightGrams).toBe(250)
   })
 
   it('el total de las líneas es el mismo que el subtotal, para que nada se esconda', () => {
