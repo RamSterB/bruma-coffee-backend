@@ -229,6 +229,21 @@ las de producción se parecen lo bastante como para pegar la equivocada.
   `amount_in_cents` y como `amountInCents` según el caso, y una lista fija valida el
   primer evento que se pruebe y falla en el siguiente.
 
+### Reconciliación
+
+El evento es la vía rápida, pero **se pierde**: la URL de evento mal registrada en el
+panel, una caída, un despliegue en curso. Por eso la propia documentación del proveedor
+pide consultar el estado a intervalos, y eso es lo que hace
+`POST /api/orders/reconcile`: pregunta a la pasarela por los pagos que llevan más de 30
+segundos en `PENDING` y aplica el mismo camino que el evento.
+
+La firma de la consulta **no se comprueba**, y no es un descuido: la firma protege contra
+quien nos llama, y aquí somos nosotros los que llamamos.
+
+Un pago **rechazado en el momento de crearlo** deja la orden en `FAILED`, no en `PENDING`.
+No hay pago que consultar después, así que en `PENDING` se quedaría colgando para siempre.
+Una **caída** sí deja la orden en `PENDING`, porque eso se reintenta.
+
 ### Idempotencia
 
 No está en el código, porque el código no puede saber que dos peticiones del mismo
@@ -291,6 +306,14 @@ Cada una de ellas fue un 4xx o un 422 con un mensaje que no señalaba el problem
   de vida corta: se pide en cada transacción, no se cachea.
 - El cuerpo de la transacción va en **snake_case**. En camelCase responde 422 con un
   mensaje que parece un error de importe y en realidad es de formato.
+- **`shipping_address` es un objeto**, con `address_line_1`, `city`, `country` (ISO de
+  dos letras: `CO`, no `COL`), `region`, `phone_number`, `first_name` y `last_name`. Como
+  texto plano da un 422 cuyo único mensaje es `shipping_address: "Debe ser tipo hash"`, que
+  no dice que el problema sea el tipo. Se descubrió quitando campos del cuerpo uno a uno.
+- El **token de aceptación es de un solo uso**, y lo gasta incluso una petición que falla
+  con 422. Se pide uno nuevo en cada intento.
+- La **`reference` también es de un solo uso**: repetida da 422.
+- `payment_source` no se manda en un pago con tarjeta; es para otros métodos.
 - El comercio viene envuelto en `data`, y la transacción creada también, **plana**: el
   envoltorio `data.transaction` es solo del evento del webhook.
 - El mínimo del ambiente de pruebas son 1.500 **pesos** (150.000 centavos), que es lo

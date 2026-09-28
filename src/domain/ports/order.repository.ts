@@ -41,6 +41,14 @@ export abstract class OrderRepositoryPort {
     shortage: StockShortage[]
   }>
 
+  /**
+   * Marca una orden como fallida sin pago. Es distinto de "aplicar el resultado de
+   * un pago" porque aquí no hay pago: la pasarela rechazó la creación, así que no
+   * existe intento que consultar después. Sin esto la orden se queda en PENDING para
+   * siempre, sin nada que pueda resolverla.
+   */
+  abstract markAsFailed(orderId: string, at: Date): Promise<void>
+
   /** El siguiente número de orden legible. Lo genera el repositorio para que dos compras simultáneas no se lo lleven. */
   abstract nextOrderNumber(now: Date): Promise<string>
 }

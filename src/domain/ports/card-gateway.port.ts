@@ -14,6 +14,7 @@ export interface CreateTransactionInput {
   customerName: string
   customerDocument: string
   customerPhone: string
+  /** Solo la vía, sin ciudad ni departamento: la pasarela los pide aparte. */
   shippingAddress: string
   shippingCity: string
   shippingDepartment: string
@@ -43,6 +44,17 @@ export abstract class CardGateway {
   abstract createTransaction(
     input: CreateTransactionInput,
   ): Promise<Result<GatewayTransaction, AppError>>
+
+  /**
+   * Consulta el estado de una transaccion ya creada.
+   *
+   * Existe porque **la propia documentacion del proveedor pide consultar el estado a
+   * periodas**: el evento es la via rapida, no la unica. Si el evento no llega (la
+   * URL mal registrada en el panel, una caida, un despliegue en curso), el pago se
+   * queda PENDING para siempre y no hay ningun error en ninguna parte. Con esta
+   * llamada, quien programa la reconciliacion es quien decide cuando se resuelve.
+   */
+  abstract getTransactionStatus(reference: string): Promise<Result<GatewayTransaction, AppError>>
 
   /**
    * Comprueba la firma del evento. Va en el port, y no en el caso de uso, porque

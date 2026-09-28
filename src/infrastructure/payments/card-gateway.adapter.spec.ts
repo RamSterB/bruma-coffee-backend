@@ -74,7 +74,7 @@ const entrada = (over: Partial<CreateTransactionInput> = {}): CreateTransactionI
   customerName: 'Persona Compradora',
   customerDocument: '1098765434',
   customerPhone: '3001234567',
-  shippingAddress: 'Carrera 7, Bogotá, Cundinamarca',
+  shippingAddress: 'Carrera 7 con Calle 72',
   shippingCity: 'Bogotá',
   shippingDepartment: 'Cundinamarca',
   ...over,
@@ -340,5 +340,106 @@ describe('CardGatewayAdapter.createTransaction contra el contrato real', () => {
       return
     }
     expect(resultado.error.status).toBe(502)
+  })
+})
+
+describe('CardGatewayAdapter.getTransactionStatus', () => {
+  it('consulta la transacción por su identificador y devuelve el estado', async () => {
+    // La ruta de consulta es la red de seguridad: si el evento no llega, el estado
+    // se pregunta. Por eso el adaptador tiene que poder leer, no solo escribir.
+    const { fetch, llamadas } = peticion({
+      status: 200,
+      cuerpo: { data: { id: 'tx-1', status: 'APPROVED', amount_in_cents: 150000 } },
+    })
+
+    const resultado = await new CardGatewayAdapter(CONFIG, fetch).getTransactionStatus('tx-1')
+
+    expect(llamadas[0]?.url).toContain('/transactions/tx-1')
+    expect(resultado.ok).toBe(true)
+    if (!resultado.ok) {
+      return
+    }
+    expect(resultado.value).toEqual({ reference: 'tx-1', status: 'APPROVED', amount: 150000 })
+  })
+
+  it('traduce un 404 de la pasarela a un error, sin tirar la excepción', async () => {
+    const { fetch } = peticion({ status: 404, cuerpo: { error: 'no existe' } })
+
+    const resultado = await new CardGatewayAdapter(CONFIG, fetch).getTransactionStatus(
+      'tx-inexistente',
+    )
+
+    expect(resultado.ok).toBe(false)
+  })
+
+  it('avisa como pasarela caída si la consulta falla por red', async () => {
+    const fetch = async (): Promise<Response> => {
+      throw new Error('sin conexión')
+    }
+
+    const resultado = await new CardGatewayAdapter(CONFIG, fetch).getTransactionStatus('tx-1')
+
+    expect(resultado.ok).toBe(false)
+    if (resultado.ok) {
+      return
+    }
+    expect(resultado.error.status).toBe(502)
+  })
+
+  describe('CardGatewayAdapter.createTransaction y la direccion', () => {
+    it('manda la direccion como objeto, porque como texto la pasarela la rechaza', async () => {
+      // Con texto plano responde 422 y el unico campo que menciona es
+      // `shipping_address: "Debe ser tipo hash"`, que no dice que el problema sea el
+      // tipo. Se averiguo quitando campos del cuerpo uno a uno.
+      const { fetch, llamadas } = peticion({
+        status: 201,
+        cuerpo: { data: { id: 'tx-1', status: 'PENDING' } },
+      })
+
+      await new CardGatewayAdapter(CONFIG, fetch).createTransaction(entrada({}))
+
+      const cuerpo = JSON.parse(String(transaccionDe(llamadas).body))
+      expect(typeof cuerpo.shipping_address).toBe('object')
+      expect(cuerpo.shipping_address.address_line_1).toBe('Carrera 7 con Calle 72')
+    })
+
+    it('parte el nombre en nombre y apellido, que son campos separados alli', async () => {
+      const { fetch, llamadas } = peticion({
+        status: 201,
+        cuerpo: { data: { id: 'tx-1', status: 'PENDING' } },
+      })
+
+      await new CardGatewayAdapter(CONFIG, fetch).createTransaction(
+        entrada({ customerName: 'Persona Compradora' }),
+      )
+
+      const cuerpo = JSON.parse(String(transaccionDe(llamadas).body))
+      expect(cuerpo.shipping_address.first_name).toBe('Persona')
+      expect(cuerpo.shipping_address.last_name).toBe('Compradora')
+    })
+
+    it('pone el pais como codigo ISO de dos letras, que no es COL', async () => {
+      const { fetch, llamadas } = peticion({
+        status: 201,
+        cuerpo: { data: { id: 'tx-1', status: 'PENDING' } },
+      })
+
+      await new CardGatewayAdapter(CONFIG, fetch).createTransaction(entrada({}))
+
+      const cuerpo = JSON.parse(String(transaccionDe(llamadas).body))
+      expect(cuerpo.shipping_address.country).toBe('CO')
+    })
+
+    it('no manda payment_source, que es para otros metodos de pago', async () => {
+      const { fetch, llamadas } = peticion({
+        status: 201,
+        cuerpo: { data: { id: 'tx-1', status: 'PENDING' } },
+      })
+
+      await new CardGatewayAdapter(CONFIG, fetch).createTransaction(entrada({}))
+
+      const cuerpo = JSON.parse(String(transaccionDe(llamadas).body))
+      expect(cuerpo.payment_source).toBeUndefined()
+    })
   })
 })

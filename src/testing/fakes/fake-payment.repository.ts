@@ -18,6 +18,12 @@ export class FakePaymentRepository implements PaymentRepositoryPort {
     return [...this.pagos.values()].filter((pago) => pago.orderId === orderId)
   }
 
+  async findPendingOlderThan(olderThan: Date, limit: number): Promise<Payment[]> {
+    return [...this.pagos.values()]
+      .filter((pago) => pago.status === 'PENDING' && pago.createdAt < olderThan)
+      .slice(0, limit)
+  }
+
   all(): Payment[] {
     return [...this.pagos.values()]
   }

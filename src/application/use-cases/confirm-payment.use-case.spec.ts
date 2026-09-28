@@ -1,5 +1,6 @@
 import { ConfirmPaymentUseCase, type ConfirmPaymentInput } from './confirm-payment.use-case'
 import { CreateOrderUseCase } from './create-order.use-case'
+import { SettlePaymentService } from './settle-payment.service'
 import { GetOrderSummaryUseCase } from './get-order-summary.use-case'
 import { FakeCartRepository } from '../../testing/fakes/fake-cart.repository'
 import { FakeOrderRepository } from '../../testing/fakes/fake-order.repository'
@@ -25,6 +26,10 @@ class GatewayFirmado extends CardGateway {
     input: CreateTransactionInput,
   ): Promise<Result<GatewayTransaction, AppError>> {
     return ok({ reference: 'ref-1', status: 'PENDING', amount: input.amountInCents })
+  }
+
+  async getTransactionStatus(): Promise<Result<GatewayTransaction, AppError>> {
+    return ok({ reference: 'ref-1', status: 'PENDING', amount: 0 })
   }
 
   verifySignature(): Result<void, AppError> {
@@ -58,7 +63,7 @@ const montar = async () => {
     new GetOrderSummaryUseCase(carrito, CONFIG),
     cardGatewayConfig(),
   )
-  const confirmar = new ConfirmPaymentUseCase(orders, payments, gateway)
+  const confirmar = new ConfirmPaymentUseCase(gateway, new SettlePaymentService(orders, payments))
   const creada = await crear.execute({
     userId: 'usuario-1',
     cardToken: 'tok_test_123',
@@ -162,7 +167,7 @@ describe('ConfirmPaymentUseCase', () => {
     }
   })
 
-  it('ignora un evento cuya referencia no conoce, sin desco.tar stock', async () => {
+  it('ignora un evento cuya referencia no conoce, sin descontar stock', async () => {
     const { orders, confirmar } = await montar()
     orders.stock.set('v1', 10)
 

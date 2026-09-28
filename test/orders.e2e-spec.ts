@@ -150,6 +150,18 @@ describe('/orders e2e', () => {
       .expect(201)
   })
 
+  /** Sesion del administrador que crea la migracion de arranque. */
+  const tokenDeAdmin = async (): Promise<string> => {
+    const email = process.env.SEED_ADMIN_EMAIL ?? 'admin@bruma-coffee.test'
+    const contrasena = process.env.SEED_ADMIN_PASSWORD ?? 'BrumaAdmin2026!'
+    const login = await request(server)
+      .post('/api/auth/login')
+      .send({ email, password: contrasena })
+      .expect(200)
+
+    return (login.body as { accessToken: string }).accessToken
+  }
+
   const stockDe = async (): Promise<number> => {
     const fila = await dataSource.getRepository(CoffeeVariantTypeOrmEntity).findOneByOrFail({ id: variantId })
 
@@ -449,6 +461,76 @@ describe('/orders e2e', () => {
 
     it('es público, porque el que la necesita todavía no ha iniciado sesión', async () => {
       await request(server).get('/api/payments/config').expect(200)
+    })
+  })
+
+  describe('POST /api/orders/reconcile', () => {
+    it('paga una orden cuyo evento nunca llego, que es justo para lo que existe', async () => {
+      const creada = await request(server)
+        .post('/api/orders')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          cardToken: 'tok_test_123',
+          email: 'comprador@ejemplo.co',
+          shipping: {
+            fullName: 'Persona Compradora',
+            documentNumber: '1098765434',
+            phone: '3001234567',
+            address: 'Carrera 7 con Calle 72',
+            city: 'Bogotá',
+            department: 'Cundinamarca',
+          },
+        })
+        .expect(201)
+      const orderId = (creada.body as { id: string }).id
+
+      // El evento no llega: nadie registro la URL, o la pasarela esta caida. El pago
+      // se queda PENDING y el stock sin tocar, y eso es lo que hay que recuperar.
+      const pendiente = await dataSource
+        .getRepository(OrderTypeOrmEntity)
+        .findOneByOrFail({ id: orderId })
+      expect(pendiente.status).toBe('PENDING')
+      expect(await stockDe()).toBe(10)
+
+      // La reconciliacion, por diseno, solo mira pagos que llevan un rato pendientes:
+      // uno recien creado puede que la pasarela todavia no haya decidido. Envejecer el
+      // pago aqui es lo que hace el papel del paso del tiempo, sin esperar treinta
+      // segundos de reloj.
+      await dataSource.query(
+        "UPDATE payments SET created_at = now() - interval '2 minutes' WHERE order_id = $1",
+        [orderId],
+      )
+
+      // El token se pide ANTES de construir la petición. Con el `await` dentro de la
+      // cadena, la petición queda sin nada que la mantenga viva mientras se resuelve
+      // y supertest cierra la conexion: falla con ECONNREFUSED sin llegar a enviar
+      // nada. Es un detalle del arnés, no del codigo, pero cuesta un rato encontrarlo.
+      const tokenDeAdministrador = await tokenDeAdmin()
+
+      await request(server)
+        .post('/api/orders/reconcile')
+        .set('Authorization', `Bearer ${tokenDeAdministrador}`)
+        .expect(200)
+
+      const pagada = await dataSource
+        .getRepository(OrderTypeOrmEntity)
+        .findOneByOrFail({ id: orderId })
+      expect(pagada.status).toBe('PAID')
+      expect(await stockDe()).toBe(8)
+    })
+
+    it('no lo puede llamar una persona normal', async () => {
+      // 401 y no 403: es lo que contesta el guard de administrador que ya existe en el
+      // repo, y semantics más correctas serían 403. No se cambia aquí porque ese guard
+      // lo usan otros endpoints y tocarlo es otro increment. Anotado como deuda.
+      await request(server)
+        .post('/api/orders/reconcile')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(401)
+    })
+
+    it('no lo puede llamar quien no tiene sesion', async () => {
+      await request(server).post('/api/orders/reconcile').expect(401)
     })
   })
 })

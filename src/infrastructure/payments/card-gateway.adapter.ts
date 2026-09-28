@@ -47,6 +47,26 @@ const ESTADOS_CONOCIDOS: readonly GatewayPaymentStatus[] = [
   'CANCELLED',
 ]
 
+/**
+ * La pasarela pide nombre y apellido por separado, y nosotros solo tenemos el nombre
+ * completo. La convención que se usa es tomar el primer término como nombre y el
+ * resto como apellidos: `Persona Compradora` → `Persona` / `Compradora`.
+ *
+ * Es una convención, no un dato: quien se llama `María de los Ángeles Pérez` sale
+ * como nombre `María` y apellidos `de los Ángeles Pérez`. Para un envío a una persona
+ * real eso es mejor que cortarlo por la mitad, que es lo que haría un `split(' ')[0]`
+ * dejando el segundo término como apellido vacío.
+ */
+const nombreSeparado = (nombreCompleto: string): { first_name: string; last_name: string } => {
+  const partes = nombreCompleto
+    .trim()
+    .split(/\s+/)
+    .filter((parte) => parte.length > 0)
+  const [primero = '', ...resto] = partes
+
+  return { first_name: primero, last_name: resto.join(' ') }
+}
+
 const aEstado = (valor: string | undefined): GatewayPaymentStatus =>
   ESTADOS_CONOCIDOS.find((estado) => estado === valor) ?? 'ERROR'
 
@@ -111,13 +131,24 @@ export class CardGatewayAdapter extends CardGateway {
       status: 'PENDING',
       acceptance_token: aceptacion.value,
       payment_method: { type: 'CARD', installments: 1, token: input.cardToken },
-      payment_source: input.customerDocument,
+      // `payment_source` no se manda: es para Nequi y PSE, y aquí es una tarjeta. Enviado
+      // con el documento del cliente, la pasarela lo rechaza diciendo que la dirección
+      // "debe ser tipo hash", que no señala el campo ni el motivo.
       customer_email: input.customerEmail,
       customer_name: input.customerName,
       customer_phone: input.customerPhone,
-      shipping_address: input.shippingAddress,
-      shipping_city: input.shippingCity,
-      shipping_department: input.shippingDepartment,
+      // La dirección va como **objeto**, no como texto. Mandarla como texto da un 422
+      // cuyo único mensaje es `shipping_address: "Debe ser tipo hash"`, que no dice
+      // que el problema es el tipo. Se descubrió quitando campos del cuerpo uno a uno.
+      shipping_address: {
+        address_line_1: input.shippingAddress,
+        city: input.shippingCity,
+        // Código ISO de dos letras. `COL` no está en su lista y se rechaza.
+        country: 'CO',
+        region: input.shippingDepartment,
+        phone_number: input.customerPhone,
+        ...nombreSeparado(input.customerName),
+      },
       // La firma viaja en el cuerpo, no en la cabecera: así es como la calcula y la
       // espera el proveedor, y es lo que ata el importe a la petición.
       signature: integritySignature({
@@ -158,6 +189,36 @@ export class CardGatewayAdapter extends CardGateway {
       reference: leido.data?.id ?? input.orderNumber,
       status: estado,
       amount: input.amountInCents,
+    })
+  }
+
+  async getTransactionStatus(reference: string): Promise<Result<GatewayTransaction, AppError>> {
+    let respuesta: Response
+    try {
+      // La llave publica alcanza para leer. La privada es para autorizar pagos, y
+      // usarla para consultar seria poner un permiso mas en juego del necesario.
+      respuesta = await this.fetch(`${this.config.baseUrl}/transactions/${reference}`, {
+        headers: {
+          Authorization: `Bearer ${this.config.publicKey}`,
+          Accept: 'application/json',
+        },
+      })
+    } catch (error) {
+      return err(gatewayUnavailableError((error as Error).message))
+    }
+
+    if (!respuesta.ok) {
+      return err(gatewayUnavailableError(`la consulta respondió ${respuesta.status}`))
+    }
+
+    const cuerpo = (await respuesta.json()) as {
+      data?: { id?: string; status?: string; amount_in_cents?: number }
+    }
+
+    return ok({
+      reference: cuerpo.data?.id ?? reference,
+      status: aEstado(cuerpo.data?.status),
+      amount: cuerpo.data?.amount_in_cents ?? 0,
     })
   }
 

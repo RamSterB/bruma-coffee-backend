@@ -7,8 +7,28 @@ import type { FetchLike } from '../infrastructure/payments/card-gateway.adapter'
  * dominio (ADR-005): esto no sabe nada de pagos, solo responde lo que se le pide
  * pegar, y vive en `src/testing`, fuera de la aplicación en ejecución.
  */
-export const createCardGatewayStub = (referencia: () => string): FetchLike => {
+export const createCardGatewayStub = (
+  referencia: () => string,
+  /**
+   * Estado que devuelve la pasarela cuando le preguntan por una transacción. Por
+   * defecto `APPROVED`, que es lo que hace falta para probar la reconciliación: el
+   * evento no llega y el pago se resuelve igual.
+   */
+  estadoEnConsulta: 'APPROVED' | 'DECLINED' | 'PENDING' = 'APPROVED',
+): FetchLike => {
   return async (url, init) => {
+    // La consulta de una transaccion ya creada. Sin esto, la reconciliación no
+    // tendria con quien hablar.
+    if (url.includes('/transactions/')) {
+      const id = url.slice(url.lastIndexOf('/') + 1)
+
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { id, status: estadoEnConsulta, amount_in_cents: 10996000 } }),
+      } as Response
+    }
+
     // El adaptador pide el comercio para sacar el token de aceptación antes de
     // cobrar. Sin esta ruta, la prueba fallaría por un motivo que no es el que mide.
     if (url.includes('/merchants/')) {

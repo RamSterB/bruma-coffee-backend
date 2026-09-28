@@ -42,6 +42,17 @@ export class TypeOrmPaymentRepository implements PaymentRepositoryPort {
     return filas.map((fila) => this.aPago(fila))
   }
 
+  async findPendingOlderThan(olderThan: Date, limit: number): Promise<Payment[]> {
+    const filas = await this.pagos.find({
+      where: { status: 'PENDING' },
+      order: { createdAt: 'ASC' },
+      take: limit,
+    })
+    const anteriores = filas.filter((fila) => fila.createdAt < olderThan)
+
+    return anteriores.map((fila) => this.aPago(fila))
+  }
+
   private aPago(fila: PaymentTypeOrmEntity): Payment {
     return {
       id: fila.id,

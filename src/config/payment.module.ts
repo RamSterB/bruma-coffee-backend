@@ -8,7 +8,11 @@ import {
   type CardGatewayConfig,
 } from './card-gateway.config'
 import { CreateOrderUseCase } from '../application/use-cases/create-order.use-case'
-import { ConfirmPaymentUseCase } from '../application/use-cases/confirm-payment.use-case'
+import {
+  ConfirmPaymentUseCase,
+  ReconcilePendingPaymentsUseCase,
+} from '../application/use-cases/confirm-payment.use-case'
+import { SettlePaymentService } from '../application/use-cases/settle-payment.service'
 import { GetOrderStatusUseCase } from '../application/use-cases/get-order-status.use-case'
 import { CardGateway } from '../domain/ports/card-gateway.port'
 import { OrderRepositoryPort } from '../domain/ports/order.repository'
@@ -66,7 +70,9 @@ export const CARD_GATEWAY_FETCH = 'CARD_GATEWAY_FETCH'
     { provide: OrderRepositoryPort, useClass: TypeOrmOrderRepository },
     { provide: PaymentRepositoryPort, useClass: TypeOrmPaymentRepository },
     CreateOrderUseCase,
+    SettlePaymentService,
     ConfirmPaymentUseCase,
+    ReconcilePendingPaymentsUseCase,
     GetOrderStatusUseCase,
   ],
 })

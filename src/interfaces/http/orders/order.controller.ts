@@ -27,7 +27,10 @@ import {
   CreateOrderUseCase,
   type CreatedOrder,
 } from '../../../application/use-cases/create-order.use-case'
-import { ConfirmPaymentUseCase } from '../../../application/use-cases/confirm-payment.use-case'
+import {
+  ConfirmPaymentUseCase,
+  ReconcilePendingPaymentsUseCase,
+} from '../../../application/use-cases/confirm-payment.use-case'
 import {
   CARD_GATEWAY_CONFIG,
   gatewayEnvironment,
@@ -37,7 +40,7 @@ import { GetOrderStatusUseCase } from '../../../application/use-cases/get-order-
 import type { AppError } from '../../../domain/errors/app-error'
 import type { Result } from '../../../domain/result'
 import type { Request } from 'express'
-import { JwtAuthGuard, type SessionInfo } from '../auth/auth.guards'
+import { AdminGuard, JwtAuthGuard, type SessionInfo } from '../auth/auth.guards'
 import {
   GatewayPublicConfigDto,
   CreateOrderDto,
@@ -55,6 +58,7 @@ export class OrderController {
     private readonly createOrder: CreateOrderUseCase,
     private readonly getOrderStatus: GetOrderStatusUseCase,
     private readonly confirmPayment: ConfirmPaymentUseCase,
+    private readonly reconcilePendingPayments: ReconcilePendingPaymentsUseCase,
     @Inject(CARD_GATEWAY_CONFIG) private readonly config: CardGatewayConfig,
   ) {}
 
@@ -193,6 +197,36 @@ export class OrderController {
     }
 
     throw resultado.error
+  }
+
+  /**
+   * Reconciliación: pregunta a la pasarela por los pagos que siguen pendientes.
+   *
+   * La ejecuta un planificador (EventBridge en AWS, un cron en local), no una
+   * persona: quien tiene que poder llamarla es la infraestructura, y para eso hace
+   * falta una sesión de administrador, no la de un cliente.
+   *
+   * Es idempotente: preguntar mil veces por el mismo pago no descuenta stock más de
+   * una vez, porque eso lo decide la base de datos, no este endpoint.
+   */
+  @Post('orders/reconcile')
+  // El guard de sesión va primero porque el de admin lee de lo que dejó el primero.
+  // Con solo el de admin, un token de cliente válido daría 401 en vez de 403, que
+  // es un código distinto para el mismo hecho.
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Consulta a la pasarela los pagos que siguen pendientes',
+    description:
+      'Red de seguridad del pago. El evento es la vía rápida, pero se pierde si la URL de ' +
+      'evento no está registrada, si hay una caída o si hay un despliegue en curso, y sin esta ' +
+      'consulta el pago se queda PENDING para siempre sin ningún error. Pensada para que la ' +
+      'llame un planificador; requiere rol de administrador.',
+  })
+  @ApiOkResponse({ description: 'Informe de lo revisado, aplicado y lo que no se pudo consultar' })
+  @ApiUnauthorizedResponse({ description: 'Falta el token, o no es de un administrador' })
+  async reconciliar(): Promise<unknown> {
+    return this.desdoblar(await this.reconcilePendingPayments.execute())
   }
 
   private desdoblar<T>(resultado: Result<T, AppError>): T {

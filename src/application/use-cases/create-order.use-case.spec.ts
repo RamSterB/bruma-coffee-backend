@@ -39,6 +39,10 @@ class GatewayQueAprueba extends CardGateway {
     return ok({ reference: this.referencia, status: 'PENDING', amount: input.amountInCents })
   }
 
+  async getTransactionStatus(): Promise<Result<GatewayTransaction, AppError>> {
+    return ok({ reference: 'tx-1', status: 'PENDING', amount: 0 })
+  }
+
   verifySignature(): Result<void, AppError> {
     return ok(undefined)
   }
@@ -263,5 +267,36 @@ describe('CreateOrderUseCase', () => {
     // El correo se normaliza a minúsculas, así que las dos compras son de la misma
     // persona y por eso: dos filas serían dos personas con el mismo correo.
     expect(customers.todos).toHaveLength(1)
+  })
+})
+
+describe('CreateOrderUseCase cuando la pasarela rechaza el cobro', () => {
+  it('deja la orden en FAILED, no en PENDING colgando para siempre', async () => {
+    // La orden se crea antes de cobrar, a propósito. Pero si el cobro se rechaza en
+    // el momento, esa orden ya no está pendiente de nada: no hay pago que
+    // reconciliar, así que se quedaría en PENDING para siempre, con el stock
+    // reservado en la cabeza de alguien a quien ya se le dijo que no.
+    const rechaza = new GatewayQueAprueba()
+    rechaza.createTransaction = async (): Promise<Result<GatewayTransaction, AppError>> =>
+      err(gatewayDeclinedError('la tarjeta fue rechazada'))
+    const { orders, useCase } = montar(rechaza)
+
+    const resultado = await useCase.execute(entrada({}))
+
+    expect(resultado.ok).toBe(false)
+    expect(orders.all()[0]?.status).toBe('FAILED')
+  })
+
+  it('deja la orden en PENDING si la pasarela no responde, porque eso sí se puede reintentar', async () => {
+    // Caída de red y rechazo no son lo mismo: una se reintenta y la otra no. Dejar
+    // ambas igual obliga a alguien a distinguirlas leyendo el motivo del error.
+    const caida = new GatewayQueAprueba()
+    caida.createTransaction = async (): Promise<Result<GatewayTransaction, AppError>> =>
+      err(gatewayUnavailableError('tiempo de espera agotado'))
+    const { orders, useCase } = montar(caida)
+
+    await useCase.execute(entrada({}))
+
+    expect(orders.all()[0]?.status).toBe('PENDING')
   })
 })

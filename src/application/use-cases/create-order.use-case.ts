@@ -147,9 +147,15 @@ export class CreateOrderUseCase {
       shippingDepartment: order.shippingDepartment,
     })
 
-    // La orden ya está guardada y se queda en PENDING. Perderla porque la pasarela
-    // no respondió sería tirar la compra de alguien que sí quiso pagar.
     if (!cobro.ok) {
+      // Rechazo y caída no son lo mismo. Un rechazo no se reintenta: la orden se
+      // marca FAILED, porque no hay pago que consultar después y en PENDING se
+      // quedaría colgando para siempre. Una caída sí se reintenta, y la orden se
+      // queda pendiente por si el siguiente intento funciona.
+      if (cobro.error.code === 'PAYMENT_DECLINED') {
+        await this.orders.markAsFailed(order.id, new Date())
+      }
+
       return err(cobro.error)
     }
 

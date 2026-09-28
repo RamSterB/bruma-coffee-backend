@@ -1,16 +1,12 @@
 import { Injectable } from '@nestjs/common'
-import { CardGateway, type WebhookHeaders } from '../../domain/ports/card-gateway.port'
-import { OrderRepositoryPort } from '../../domain/ports/order.repository'
+import { CardGateway } from '../../domain/ports/card-gateway.port'
 import { PaymentRepositoryPort } from '../../domain/ports/payment.repository'
-import { paymentWithEvent, type ConfirmedPayment } from '../../domain/entities/gateway-event.entity'
+import { SettlePaymentService } from './settle-payment.service'
 import { err, ok, type Result } from '../../domain/result'
 import type { AppError } from '../../domain/errors/app-error'
 import type { GatewayPaymentStatus } from '../../domain/entities/payment.entity'
-import type { Order } from '../../domain/entities/order.entity'
-import {
-  insufficientStockError,
-  unknownPaymentReferenceError,
-} from '../../domain/errors/payment.errors'
+import type { ConfirmedPayment } from '../../domain/entities/gateway-event.entity'
+import type { WebhookHeaders } from '../../domain/ports/card-gateway.port'
 
 export interface ConfirmPaymentInput {
   providerReference: string
@@ -19,25 +15,37 @@ export interface ConfirmPaymentInput {
   receivedAt: Date
 }
 
+export interface ReconcilePendingInput {
+  /** Solo se miran los pagos pendientes anteriores a este instante. */
+  olderThan: Date
+  limit: number
+}
+
+export interface ReconcileReport {
+  /** Cuántos pagos se miraron. */
+  revisados: number
+  /** Cuántos cambiaron de estado y se aplicaron. */
+  aplicados: number
+  /** Cuántos ya estaban resueltos cuando se miraron. */
+  yaResueltos: number
+  /** Cuántos no se pudieron consultar. No es un error del pago, es de la red. */
+  sinRespuesta: string[]
+}
+
 /**
- * Aplica el veredicto de la pasarela a la orden.
+ * Aplica el veredicto de la pasarela a la orden, **venga por donde venga**.
  *
  * Tres cosas se comprueban en este orden, y el orden importa: **primero la firma**,
- * porque si el evento no viene de la pasarela no hay nada que aplicar y aceptarlo
+ * porque si el aviso no viene de la pasarela no hay nada que aplicar y aceptarlo
  * sería permitir que cualquiera que conozca la URL marque pedidos como pagados.
- * Después se busca el pago, porque un evento sin referencia conocida no se puede
+ * Después se busca el pago, porque un aviso sin referencia conocida no se puede
  * atribuir a ninguna orden. Y solo entonces se toca el stock.
- *
- * La idempotencia no está en el código de este caso de uso sino detrás del puerto:
- * el adaptador aplica el resultado en una transacción y descarta el caso en que el
- * pago ya estaba resuelto. Aquí solo se devuelve si se aplicó o no.
  */
 @Injectable()
 export class ConfirmPaymentUseCase {
   constructor(
-    private readonly orders: OrderRepositoryPort,
-    private readonly payments: PaymentRepositoryPort,
     private readonly gateway: CardGateway,
+    private readonly settle: SettlePaymentService,
   ) {}
 
   async execute(
@@ -50,54 +58,96 @@ export class ConfirmPaymentUseCase {
       return err(firma.error)
     }
 
-    const payment = await this.payments.findByProviderReference(input.providerReference)
-
-    if (payment === null) {
-      return err(unknownPaymentReferenceError(input.providerReference))
-    }
-
-    // La pasarela avisa en cuanto nace la transacción, cuando todavía no sabe si se
-    // va a cobrar. PENDING no es un veredicto: aplicarlo cobraría sin que nadie haya
-    // pagado, así que se responde que no se aplicó y se deja la orden como estaba.
-    if (input.status === 'PENDING') {
-      const actual = await this.orders.findById(payment.orderId)
-
-      if (actual === null) {
-        return err(unknownPaymentReferenceError(input.providerReference))
-      }
-
-      return ok({ applied: false, order: this.aResumen(actual), delivery: null })
-    }
-
-    const aplicado = await this.orders.applyPaymentOutcome({
-      orderId: payment.orderId,
-      paymentStatus: input.status,
+    return this.settle.apply({
+      providerReference: input.providerReference,
+      status: input.status,
       rawEvent: input.rawEvent,
       receivedAt: input.receivedAt,
     })
-
-    if (aplicado.shortage.length > 0) {
-      return err(insufficientStockError(aplicado.shortage[0]?.coffeeName ?? 'la variante'))
-    }
-
-    await this.payments.save(
-      paymentWithEvent(payment, input.rawEvent, input.status, input.receivedAt),
-    )
-
-    return ok({
-      applied: aplicado.applied,
-      order: this.aResumen(aplicado.order),
-      delivery: aplicado.delivery,
-    })
   }
+}
 
-  private aResumen(order: Order): ConfirmedPayment['order'] {
-    return {
-      id: order.id,
-      orderNumber: order.orderNumber,
-      status: order.status,
-      paymentStatus: order.paymentStatus,
-      total: order.total,
+const SEGUNDOS_POR_DEFECTO = 30
+
+/**
+ * Pregunta a la pasarela cómo van los pagos que siguen pendientes.
+ *
+ * Esta es la red de seguridad del pago, y no un adorno. El aviso es la vía rápida,
+ * pero se pierde: la URL mal registrada en el panel, una caída, un despliegue en
+ * curso. Sin esta consulta, cualquiera de esos casos deja el pago en `PENDING`
+ * **para siempre y sin un solo error en ninguna parte**, que es la peor forma de
+ * perder un cobro.
+ *
+ * No se salta nada: un pago que sigue `PENDING` en la pasarela se deja como está, y
+ * uno que ya estaba resuelto en nuestra base se cuenta y no se toca. La idempotencia
+ * sigue estando en la base de datos, así que correr esto cada cierto rato es seguro.
+ */
+@Injectable()
+export class ReconcilePendingPaymentsUseCase {
+  constructor(
+    private readonly payments: PaymentRepositoryPort,
+    private readonly gateway: CardGateway,
+    private readonly settle: SettlePaymentService,
+  ) {}
+
+  async execute(
+    entrada: Partial<ReconcilePendingInput> = {},
+  ): Promise<Result<ReconcileReport, AppError>> {
+    const olderThan = entrada.olderThan ?? new Date(Date.now() - SEGUNDOS_POR_DEFECTO * 1000)
+    const limit = entrada.limit ?? 50
+    const pendientes = await this.payments.findPendingOlderThan(olderThan, limit)
+
+    const informe: ReconcileReport = {
+      revisados: 0,
+      aplicados: 0,
+      yaResueltos: 0,
+      sinRespuesta: [],
     }
+
+    for (const pago of pendientes) {
+      informe.revisados += 1
+
+      const consulta = await this.gateway.getTransactionStatus(pago.providerReference)
+
+      if (!consulta.ok) {
+        // No se propaga: una caída de la pasarela al consultar no debe impedir que
+        // se intente con los demás pagos de la lista.
+        informe.sinRespuesta.push(pago.providerReference)
+
+        continue
+      }
+
+      if (consulta.value.status === 'PENDING') {
+        continue
+      }
+
+      const aplicado = await this.settle.aplicarA(pago, {
+        providerReference: pago.providerReference,
+        status: consulta.value.status,
+        // Viene de una consulta, no de un aviso: no hay evento que archivar y no
+        // hay firma que comprobar, porque la firma protege contra quien nos llama,
+        // y aquí somos nosotros los que llamamos.
+        rawEvent: null,
+        receivedAt: new Date(),
+      })
+
+      if (!aplicado.ok) {
+        if (aplicado.error.code === 'UNKNOWN_PAYMENT') {
+          informe.yaResueltos += 1
+        } else {
+          informe.sinRespuesta.push(pago.providerReference)
+        }
+
+        continue
+      }
+
+      if (aplicado.value.applied) {
+        informe.aplicados += 1
+      } else {
+        informe.yaResueltos += 1
+      }
+    }
+
+    return ok(informe)
   }
 }

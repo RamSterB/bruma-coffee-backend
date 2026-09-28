@@ -50,6 +50,15 @@ export class TypeOrmOrderRepository implements OrderRepositoryPort {
     return fila === null ? null : this.aOrden(fila)
   }
 
+  async markAsFailed(orderId: string, at: Date): Promise<void> {
+    // Solo el estado de la orden: el pago no existe, porque la pasarela rechazó la
+    // creación. Tocar stock aquí sería incorrecto: no se descontó nada.
+    await this.dataSource.getRepository(OrderTypeOrmEntity).update(orderId, {
+      status: 'FAILED',
+      updatedAt: at,
+    })
+  }
+
   async findDeliveryByOrderId(orderId: string): Promise<Delivery | null> {
     const fila = await this.dataSource.getRepository(DeliveryTypeOrmEntity).findOne({
       where: { orderId },

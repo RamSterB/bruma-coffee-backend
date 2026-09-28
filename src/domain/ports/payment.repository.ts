@@ -11,4 +11,11 @@ export abstract class PaymentRepositoryPort {
   abstract findByProviderReference(reference: string): Promise<Payment | null>
 
   abstract findByOrderId(orderId: string): Promise<Payment[]>
+
+  /**
+   * Los pagos que siguen `PENDING` y son mas antiguos que el instante dado. Es lo que
+   * recorre la reconciliacion: no tiene sentido preguntar por uno que se acaba de
+   * crear, porque la pasarela aun no ha decidido.
+   */
+  abstract findPendingOlderThan(olderThan: Date, limit: number): Promise<Payment[]>
 }

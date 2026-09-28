@@ -36,6 +36,16 @@ export class FakeOrderRepository implements OrderRepositoryPort {
     return this.envios.get(orderId) ?? null
   }
 
+  async markAsFailed(orderId: string, at: Date): Promise<void> {
+    const order = this.ordenes.get(orderId)
+
+    if (order === undefined) {
+      return
+    }
+
+    this.ordenes.set(orderId, { ...order, status: 'FAILED', updatedAt: at })
+  }
+
   async nextOrderNumber(now: Date): Promise<string> {
     this.nextOrderNumberCalls += 1
     const dia = now.toISOString().slice(0, 10).replace(/-/g, '')
